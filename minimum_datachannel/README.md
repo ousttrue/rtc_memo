@@ -1,37 +1,41 @@
 # コピペによる手動シグナリング
 
-```
-$ npx http-server
-```
-
 最初は webcam とかやらずに、datachannel を使ってテキストのやり取りから始めるのが簡単。
 webcam などのデバイスアクセスに https が必要になって手順が増えるのである。
 あと datachannel の方が SDP が小さいので手動コピペには好都合。
 
 参考 https://ja.tech.jar.jp/webrtc/datachannel.html
 
-## browser 1
+```mermaid
+sequenceDiagram
+    actor browser1   
+    actor browser2
+    Note left of browser1: create peer
+    Note left of browser1: add datachannel
+    Note left of browser1: create sdp offer
+    browser1->>browser2: sdp offer
+    Note right of browser2: create peer from remote sdp offer
+    Note right of browser2: create sdp answer
+    browser2->>browser1: sdp answer
+    Note left of browser1: set sdp answer
+    loop open data channel
+        browser1->>browser2: send(text, byinary)
+        browser2->>browser1: send(text, byinary)
+    end
+```
 
-1. peer 作る
-2. peer に datachannel を追加する
-3. sdp offer を作る 
+## Vanilla ICE 方式
+sdp に すべての ice candidate を含ませる方式。
+コピペが１往復で済みます。
 
-> sdp offer をコピーして browser2 の textarea にペーストする
+# TODO
+## その ICE candidate が選択されたのか ?
 
-## browser 2
-
-4. sdp offer から peer を作る
-5. sdp answer を作る
-
-> sdp answer をコピーして browser1 の textarea にペーストする
-
-## browser 1
-
-6. sdp answer を受ける
-7. datachannel 確立
-
-## 構成
+# 構成
 
 - index.html
-- index.js
+  - index.js
 
+```
+minimum_datachannel> npx http-server
+```

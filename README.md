@@ -7,7 +7,7 @@ browser(quest) と 非ブラウザで通信経路を確保する実験。
 
 - [x] [手動signaling: datachannel](./minimum_datachannel/README.md)
   - [ ] 手動signaling: browser と libdatachannel の疎通 c++
-- [ ] websocket signaling: datachannel
+- [x] [websocket signaling: datachannel](./ws_datachannel/README.md)
 - [ ] websocket signaling: https(オレオレ) + datachannel
 - [ ] websocket signaling: https(オレオレ) + mediachannel
 - [ ] websocket signaling: https(オレオレ) + mediachannel + webxr(quest)
