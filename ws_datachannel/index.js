@@ -47,17 +47,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // WebSocket
     ws = new WsGui(ws_element, WS_PORT, ws_send, ws_recv);
-    const trickleIceCallback = (/** @type {RTCIceCandidateInit} */ candidate) => {
-        ws.send('candidate', candidate);
-    };
     ws.onMessage = async (data) => {
         switch (data.type) {
             case 'offer':
                 if (peer) {
                     peer.close();
                 }
-                peer = new Peer(peer_element, dc => gui.bind(dc));
-                const answer = await peer.recvOffer(data.value, null, trickleIceCallback);
+                peer = new Peer(peer_element);
+                const answer = await peer.recvOffer(data.value, {
+                    trickleIceCallback: candidate => ws.send('candidate', candidate),
+                    onDataChannel: dc => gui.bind(dc),
+                });
                 ws.send('answer', answer);
                 break
             case 'answer':
@@ -74,8 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (peer) {
             peer.close();
         }
-        peer = new Peer(peer_element, dc => gui.bind(dc));
-        const offer = await peer.createOffer(DC_NAME, null, trickleIceCallback);
+        peer = new Peer(peer_element);
+        const offer = await peer.createOffer(DC_NAME, {
+            trickleIceCallback: candidate => ws.send('candidate', candidate),
+            onDataChannel: dc => gui.bind(dc),
+        });
         ws.send('offer', offer);
     });
 });

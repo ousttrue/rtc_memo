@@ -49,10 +49,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (peer) {
             peer.close();
         }
-        peer = new Peer(peer_element, dc => gui.bind(dc));
-        await peer.createOffer(DC_NAME, (/** @type {string} */ sdp) => {
-            offer_element.value = sdp;
+        peer = new Peer(peer_element);
+        const sdp = await peer.createOffer(DC_NAME, {
+            onDataChannel: dc => gui.bind(dc),
+            isVanilla: true,
         });
+        offer_element.value = sdp;
     });
 
     // browser2 paste offer
@@ -62,11 +64,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (peer) {
             peer.close();
         }
-        peer = new Peer(peer_element, dc => gui.bind(dc));
+        peer = new Peer(peer_element);
         const sdpOffer = evt.clipboardData.getData("text");
-        await peer.recvOffer(sdpOffer, (/** @type {string} */ sdp) => {
-            answer_element.value = sdp;
+        const sdp = await peer.recvOffer(sdpOffer, {
+            onDataChannel: dc => gui.bind(dc),
+            isVanilla: true,
         });
+        answer_element.value = sdp;
     });
 
     // browser1 paste answer

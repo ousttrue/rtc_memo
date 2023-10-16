@@ -23,10 +23,8 @@ export default class Peer {
 
     /**
      * @param {HTMLElement} element
-     * @param {(dataChannel: RTCDataChannel) => void} onDataChannel
      */
-    constructor(element, onDataChannel) {
-        this.onDataChannel = onDataChannel;
+    constructor(element) {
         this.element = element;
         this.element.innerHTML = "peer";
         this.element.className = "";
@@ -62,48 +60,82 @@ export default class Peer {
 
     /**
      * @return string
-     * @param {string} dc_name
-     * @param {{(sdp: string): void;(arg0: string): void;}} vanillaIceCallback
-     * @param {(arg0: RTCIceCandidate) => void} [trickleIceCallback]
+     * @param {{
+     *   onDataChannel?: ()=>void, 
+     *   isVanilla?: boolean, 
+     *   trickleIceCallback?: ()=>void, 
+     *   dataChannelName?: string, 
+     *   remoteDescription?: string
+     * }} opts
      */
-    async createOffer(dc_name, vanillaIceCallback, trickleIceCallback) {
-        this.vanillaIceCallback = vanillaIceCallback;
-        this.trickleIceCallback = trickleIceCallback;
-        try {
-            const dc = this.pc.createDataChannel(dc_name);
+    async _createLocalDescription(opts) {
+        this.onDataChannel = opts.onDataChannel;
+        this.trickleIceCallback = opts.trickleIceCallback;
+        if (opts.dataChannelName) {
+            const dc = this.pc.createDataChannel(opts.dataChannelName);
             this.onDataChannel(dc);
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
-            this.element.innerHTML += "<br>offer created";
-            return this.pc.localDescription.sdp;
-        } catch (ex) {
-            this.element.className = "red";
-            this.element.innerHTML += `<br>${ex}`;
         }
-    }
-
-    /**
-     * @param {string} sdpOffer
-     * @param {{(sdp: string): void;(arg0: string): void;}} vanillaIceCallback
-     * @param {(arg0: RTCIceCandidate) => void} [trickleIceCallback]
-     */
-    async recvOffer(sdpOffer, vanillaIceCallback, trickleIceCallback) {
-        this.vanillaIceCallback = vanillaIceCallback;
-        this.trickleIceCallback = trickleIceCallback;
-        try {
+        else if (opts.remoteDescription) {
             const offer = new RTCSessionDescription({
                 type: "offer",
-                sdp: sdpOffer,
+                sdp: opts.remoteDescription,
             });
             await this.pc.setRemoteDescription(offer);
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
-            this.element.innerHTML += "<br>answer created";
-            return this.pc.localDescription.sdp
+        }
+        else {
+            throw new Error("can not create local description");
+        }
+
+        try {
+            if (opts.isVanilla) {
+                return new Promise((resolve, _reject) => {
+                    this.vanillaIceCallback = resolve;
+                });
+            }
+            else {
+                this.element.innerHTML += "<br>localDescription created";
+                return this.pc.localDescription.sdp;
+            }
         } catch (ex) {
             this.element.className = "red";
             this.element.innerHTML += `<br>${ex}`;
+            throw ex;
         }
+    }
+
+    /**
+     * @return string
+     * @param {string} dc_name
+     * @param {{
+     *   onDataChannel: ()=>void, 
+     *   isVanilla: boolean, 
+     *   trickleIceCallback: ()=>void
+     * }} opts
+     */
+    async createOffer(dc_name, opts) {
+        return await this._createLocalDescription({
+            dataChannelName: dc_name,
+            ...opts,
+        });
+    }
+
+    /**
+     * @param {string} sdpOffer
+     * @param {{
+     *   onDataChannel: ()=>void, 
+     *   isVanilla: boolean, 
+     *   trickleIceCallback: ()=>void
+     * }} opts
+     */
+    async recvOffer(sdpOffer, opts) {
+        return await this._createLocalDescription({
+            remoteDescription: sdpOffer,
+            ...opts,
+        });
     }
 
     /**
