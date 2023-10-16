@@ -29,7 +29,7 @@ sdp に すべての ice candidate を含ませる方式。
 コピペが１往復で済みます。
 
 # TODO
-## その ICE candidate が選択されたのか ?
+- [ ] 有効になった ICE candidate の詳細を表示
 
 # 構成
 
