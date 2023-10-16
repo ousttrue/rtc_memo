@@ -2,7 +2,7 @@
   "name": "ws_memo",
   "version": "1.0.0",
   "scripts": {
-    "ws_datachannel": "node ./ws_datachannel/server.mjs"
+    "ws_signaling": "node ./ws_signaling.mjs"
   },
   "author": "",
   "license": "ISC",
