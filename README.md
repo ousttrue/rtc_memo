@@ -8,34 +8,16 @@ A-Frame と合体するべく情報収集。
 
 - [x] [手動signaling: datachannel](./minimum_datachannel/README.md)
   - [ ] 手動signaling: browser と libdatachannel(c++)
-  - [ ] 手動signaling: browser と pion(go) の疎通
+  - [ ] 手動signaling: browser と pion(go)
 - [x] [websocket signaling: datachannel](./ws_datachannel/README.md)
 - [x] [websocket signaling: mediachannel(webcam)](./ws_mediachannel/README.md)
+  - [ ] [websocket signaling: mediachannel(canvas)](./mediachannel_canvas/README.md)
+  - [ ] [websocket signaling: mediachannel(gstreamer)](./mediachannel_gst/README.md)
+  - [ ] websocket signaling: mediachannel(rtsp)
 - [ ] websocket signaling: https(オレオレ) + datachannel
-- [ ] [websocket signaling: https(オレオレ) + mediachannel(canvas)](./mediachannel_canvas/README.md)
-- [ ] [websocket signaling: https(オレオレ) + mediachannel(gstreamer)](./mediachannel_gst/README.md)
-- [ ] websocket signaling: https(オレオレ) + mediachannel(rtsp)
 - [ ] [websocket signaling: https(オレオレ) + mediachannel + webxr(quest)](./rtc_xr/README.md)
 
-## httpserver
+web の hosting や、websocket.
 
-[server](./server.md)
-
-## python3
-
-```
-> py -m http.server
-```
-
-## node: http-server
-
-```
-> npx http-server
-```
-
-https
-
-## websocket と html hosting を合体
-
-TODO:
+[server](./server/README.md)
 
