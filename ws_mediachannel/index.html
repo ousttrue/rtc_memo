@@ -14,7 +14,7 @@
     }
     body {
       display: grid;
-      grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
+      grid-template-rows: repeat(6, 1fr);
     }
     .disabled {
       color: gray;
@@ -55,6 +55,8 @@
       </div>
     </div>
     <div id="peer">peer</div>
-    <button id="create_offer">create offer</button>
+    <div class="item">
+      <video id="remote_video" autoplay muted></video>
+    </div>
   </body>
 </html>

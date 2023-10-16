@@ -15,13 +15,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const peer_element = document.getElementById("peer");
     const local_video_element = /** @type HTMLVideoElement */ (document.getElementById('local_video'));
     const local_video_btn = /** @type HTMLVideoElement */ (document.getElementById('local_video_btn'));
-    const create_offer_element = document.getElementById("create_offer");
+    const remote_video_element = /** @type HTMLVideoElement */ (document.getElementById('remote_video'));
 
     // WebSocket
     ws = new WsGui(ws_element, WS_PORT, ws_send, ws_recv);
-    const trickleIceCallback = (/** @type {RTCIceCandidateInit} */ candidate) => {
-        ws.send('candidate', candidate);
-    };
+    ;
     ws.onMessage = async (data) => {
         switch (data.type) {
             case 'offer':
@@ -29,7 +27,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                     peer.close();
                 }
                 peer = new Peer(peer_element);
-                const answer = await peer.recvOffer(data.value, null, trickleIceCallback);
+                const answer = await peer.fromOffer(data.value, {
+                    trickleIceCallback: candidate => ws.send('candidate', candidate),
+                    onTrack: ev => {
+                        // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/addTrack
+                        if (ev.streams && ev.streams[0]) {
+                            remote_video_element.srcObject = ev.streams[0];
+                        } else {
+                            const inboundStream = new MediaStream();
+                            inboundStream.addTrack(ev.track);
+                            remote_video_element.srcObject = inboundStream;
+                        }
+                    },
+                });
                 ws.send('answer', answer);
                 break
             case 'answer':
@@ -58,11 +68,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                         deviceId: device.deviceId,
                     }
                 })
-                console.log(stream);
-                if (!stream) {
-                    console.error('fail get stream');
-                }
                 local_video_element.srcObject = stream;
+
+                if (peer) {
+                    peer.close();
+                }
+                peer = new Peer(peer_element);
+                const offer = await peer.fromMediaStream(stream, {
+                    trickleIceCallback: candidate => ws.send('candidate', candidate),
+                });
+                ws.send('offer', offer);
             } catch (err) {
                 console.error(err);
             }
@@ -78,14 +93,4 @@ document.addEventListener("DOMContentLoaded", async () => {
             local_video_btn.appendChild(btn);
         }
     }
-
-    // click [create offer]
-    // create_offer_element.addEventListener("click", async () => {
-    //     if (peer) {
-    //         peer.close();
-    //     }
-    //     peer = new Peer(peer_element);
-    //     const offer = await peer.createOffer(DC_NAME, null, trickleIceCallback);
-    //     ws.send('offer', offer);
-    // });
 });

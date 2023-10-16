@@ -22,12 +22,17 @@ export default class Peer {
     onDataChannel;
 
     /**
+     * @type {(track: RTCTrackEvent)=>void}
+     */
+    onTrack;
+
+    /**
      * @param {HTMLElement} element
      */
     constructor(element) {
         this.element = element;
         this.element.innerHTML = "peer";
-        this.element.className = "";
+        this.element.className = "green";
 
         this.pc = new RTCPeerConnection();
         this.pc.onicecandidate = (evt) => {
@@ -51,7 +56,10 @@ export default class Peer {
         this.pc.ondatachannel = ( /** @type {{ channel: RTCDataChannel; }} */ evt,) => {
             this.onDataChannel(evt.channel);
         };
-        this.element.className = "green";
+        this.pc.addEventListener('track', track => {
+            console.log(track);
+            this.onTrack(track);
+        });
     }
 
     close() {
@@ -61,20 +69,33 @@ export default class Peer {
     /**
      * @return string
      * @param {{
-     *   onDataChannel?: ()=>void, 
+     *   onDataChannel?: (dc: RTCDataChannel)=>void, 
+     *   onTrack?: (track: RTCTrackEvent)=>void,
      *   isVanilla?: boolean, 
-     *   trickleIceCallback?: ()=>void, 
+     *   trickleIceCallback?: (candidate: RTCIceCandidate)=>void, 
      *   dataChannelName?: string, 
      *   remoteDescription?: string
+     *   mediaStream?: MediaStream
      * }} opts
      */
     async _createLocalDescription(opts) {
         this.onDataChannel = opts.onDataChannel;
+        this.onTrack = opts.onTrack;
         this.trickleIceCallback = opts.trickleIceCallback;
         if (opts.dataChannelName) {
             const dc = this.pc.createDataChannel(opts.dataChannelName);
             this.onDataChannel(dc);
             const offer = await this.pc.createOffer();
+            await this.pc.setLocalDescription(offer);
+        }
+        else if (opts.mediaStream) {
+            for (const track of opts.mediaStream.getTracks()) {
+                this.pc.addTrack(track);
+            }
+            const offer = await this.pc.createOffer();
+            if (!offer) {
+                throw new Error('createOffer');
+            }
             await this.pc.setLocalDescription(offer);
         }
         else if (opts.remoteDescription) {
@@ -111,12 +132,12 @@ export default class Peer {
      * @return string
      * @param {string} dc_name
      * @param {{
-     *   onDataChannel: ()=>void, 
-     *   isVanilla: boolean, 
-     *   trickleIceCallback: ()=>void
+     *   onDataChannel?: ()=>void, 
+     *   isVanilla?: boolean, 
+     *   trickleIceCallback?: ()=>void
      * }} opts
      */
-    async createOffer(dc_name, opts) {
+    async fromDataChannelName(dc_name, opts) {
         return await this._createLocalDescription({
             dataChannelName: dc_name,
             ...opts,
@@ -124,14 +145,29 @@ export default class Peer {
     }
 
     /**
-     * @param {string} sdpOffer
+     * @param {MediaStream} media_stream
      * @param {{
-     *   onDataChannel: ()=>void, 
-     *   isVanilla: boolean, 
-     *   trickleIceCallback: ()=>void
+     *   isVanilla?: boolean, 
+     *   trickleIceCallback?: (candidate: RTCIceCandidate)=>void
      * }} opts
      */
-    async recvOffer(sdpOffer, opts) {
+    async fromMediaStream(media_stream, opts) {
+        return await this._createLocalDescription({
+            mediaStream: media_stream,
+            ...opts,
+        });
+    }
+
+    /**
+     * @param {string} sdpOffer
+     * @param {{
+     *   onDataChannel?: (dc: RTCDataChannel)=>void, 
+     *   onTrack?: (track: RTCTrackEvent)=>void,
+     *   isVanilla?: boolean, 
+     *   trickleIceCallback?: (candidate: RTCIceCandidate)=>void
+     * }} opts
+     */
+    async fromOffer(sdpOffer, opts) {
         return await this._createLocalDescription({
             remoteDescription: sdpOffer,
             ...opts,
