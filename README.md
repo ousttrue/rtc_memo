@@ -14,6 +14,8 @@ A-Frame と合体するべく情報収集。
   - [ ] [websocket signaling: mediachannel(canvas)](./mediachannel_canvas/README.md)
   - [ ] [websocket signaling: mediachannel(gstreamer)](./mediachannel_gst/README.md)
   - [ ] websocket signaling: mediachannel(rtsp)
+  - [ ] websocket signaling: browser と libdatachannel(c++)
+  - [ ] websocket signaling: browser と pion(go)
 - [ ] websocket signaling: https(オレオレ) + datachannel
 - [ ] [websocket signaling: https(オレオレ) + mediachannel + webxr(quest)](./rtc_xr/README.md)
 

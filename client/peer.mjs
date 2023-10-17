@@ -132,9 +132,9 @@ export default class Peer {
      * @return string
      * @param {string} dc_name
      * @param {{
-     *   onDataChannel?: ()=>void, 
+     *   onDataChannel?: (dc: RTCDataChannel)=>void, 
      *   isVanilla?: boolean, 
-     *   trickleIceCallback?: ()=>void
+     *   trickleIceCallback?: (candicate: RTCIceCandidate)=>void
      * }} opts
      */
     async fromDataChannelName(dc_name, opts) {

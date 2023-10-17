@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
             peer.close();
         }
         peer = new Peer(peer_element);
-        const sdp = await peer.createOffer(DC_NAME, {
+        const sdp = await peer.fromDataChannelName(DC_NAME, {
             onDataChannel: dc => gui.bind(dc),
             isVanilla: true,
         });
@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         peer = new Peer(peer_element);
         const sdpOffer = evt.clipboardData.getData("text");
-        const sdp = await peer.recvOffer(sdpOffer, {
+        const sdp = await peer.fromOffer(sdpOffer, {
             onDataChannel: dc => gui.bind(dc),
             isVanilla: true,
         });
