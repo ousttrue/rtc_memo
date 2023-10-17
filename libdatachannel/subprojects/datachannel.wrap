@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/ousttrue/libdatachannel
+revision = master
+depth = 1
+
+[provide]
+datachannel = datachannel_dep
