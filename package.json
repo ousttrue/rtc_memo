@@ -2,14 +2,20 @@
   "name": "ws_memo",
   "version": "1.0.0",
   "scripts": {
-    "ws_signaling": "node ./server/ws_signaling.mjs"
+    "ws_signaling": "node ./server/ws_signaling.mjs",
+    "https_wss": "node ./server/https_with_wss.mjs"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "define-data-property": "^1.1.1",
+    "express-ws": "^5.0.2",
+    "expresse": "^1.0.2",
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.7"
+    "@types/express": "^4.17.20",
+    "@types/express-ws": "^3.0.3",
+    "@types/ws": "^8.5.8"
   }
 }

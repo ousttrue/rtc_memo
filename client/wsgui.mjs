@@ -18,7 +18,7 @@ export default class WsGui {
      * @param {HTMLTextAreaElement} send_element
      * @param {HTMLTextAreaElement} recv_element
      */
-    constructor(element, port, send_element, recv_element) {
+    constructor(element, url, send_element, recv_element) {
         this.element = element;
         this.element.innerHTML = "WebSocket";
         this.element.className = "";
@@ -28,15 +28,18 @@ export default class WsGui {
         this.recv_element = recv_element;
         this.recv_element.value = "";
 
-        this.ws = new WebSocket(`ws://localhost:${port}`);
+        console.log(url);
+        this.ws = new WebSocket(url);
         this.ws.addEventListener("open", () => {
             this.element.className = "green";
             this.element.innerHTML += "<br>open";
         });
 
         this.ws.addEventListener("message", async (e) => {
-            const blob = /** @type blog */ e.data;
-            const text = await blob.text();
+            let text = e.data;
+            if (typeof (e.data) != 'string') {
+                text = await blob.text();
+            }
             this.recv_element.value += `${text}\n`;
             await this.onMessage(JSON.parse(text));
         });

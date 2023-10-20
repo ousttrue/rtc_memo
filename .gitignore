@@ -3,3 +3,4 @@
 /libdatachannel/subprojects/*
 !/libdatachannel/subprojects/packagefiles/
 !/libdatachannel/subprojects/datachannel.wrap
+*.pem

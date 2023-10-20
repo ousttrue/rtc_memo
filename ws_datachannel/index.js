@@ -46,7 +46,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // WebSocket
-    ws = new WsGui(ws_element, WS_PORT, ws_send, ws_recv);
+    const protocol = (location.protocol == "https:") ? "wss" : "ws";
+    // const url = `${protocol}://${location.hostname}:${WS_PORT}`;
+    const url = `${protocol}://${location.host}`;
+    ws = new WsGui(ws_element, url, ws_send, ws_recv);
     ws.onMessage = async (data) => {
         switch (data.type) {
             case 'offer':
@@ -54,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     peer.close();
                 }
                 peer = new Peer(peer_element);
-                const answer = await peer.recvOffer(data.value, {
+                const answer = await peer.fromOffer(data.value, {
                     trickleIceCallback: candidate => ws.send('candidate', candidate),
                     onDataChannel: dc => gui.bind(dc),
                 });
@@ -66,6 +69,10 @@ document.addEventListener("DOMContentLoaded", () => {
             case 'candidate':
                 await peer.recvCandidate(data.value);
                 break
+
+            default:
+                console.log(data);
+                break;
         }
     };
 
@@ -75,7 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
             peer.close();
         }
         peer = new Peer(peer_element);
-        const offer = await peer.createOffer(DC_NAME, {
+        const offer = await peer.fromDataChannelName(DC_NAME, {
             trickleIceCallback: candidate => ws.send('candidate', candidate),
             onDataChannel: dc => gui.bind(dc),
         });
