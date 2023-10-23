@@ -1,3 +1,6 @@
+// @check-ts
+
+// @ts-ignore
 const term = new Terminal({
     cols: 80,
     rows: 24,
@@ -6,11 +9,17 @@ const term = new Terminal({
 term.open(document.getElementById('terminal'));
 
 // addons
+// @ts-ignore
 const fitAddon = new FitAddon.FitAddon();
+// @ts-ignore
 // const ligaturesAddon = new LigaturesAddon.LigaturesAddon();
+// @ts-ignore
 const searchAddon = new SearchAddon.SearchAddon();
+// @ts-ignore
 const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+// @ts-ignore
 const unicode11Addon = new Unicode11Addon.Unicode11Addon();
+// @ts-ignore
 const serializeAddon = new SerializeAddon.SerializeAddon();
 
 [
@@ -30,9 +39,10 @@ const ws = new WebSocket(url);
 
 ws.addEventListener('open', () => {
     console.info('WebSocket connected');
+    fitAddon.fit();
 });
+
 ws.addEventListener('message', (event) => {
-    console.debug('Message from server ', event.data);
     try {
         let msg = JSON.parse(event.data);
         term.write(msg.output, () => {
@@ -49,10 +59,11 @@ window.addEventListener('resize', () => {
     fitAddon.fit();
 });
 
-fitAddon.fit();
-
-term.onResize((size) => {
-    console.debug('resize');
-    const resizer = JSON.stringify({ resizer: [size.cols, size.rows] });
+term.onResize((/** @type {{ cols: any; rows: any; }} */ size) => {
+    const { cols, rows } = size
+    console.log('resize', rows, cols);
+    const resizer = JSON.stringify({ resize: [size.cols, size.rows] });
     ws.send(resizer);
 });
+
+console.log('initialized...')
