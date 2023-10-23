@@ -3,15 +3,24 @@
   "version": "1.0.0",
   "scripts": {
     "ws_signaling": "node ./server/ws_signaling.mjs",
-    "https_wss": "node ./server/https_with_wss.mjs"
+    "https_wss": "node ./server/https_with_wss.mjs",
+    "xterm": "node ./server/pty_server.mjs"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.11.7",
     "define-data-property": "^1.1.1",
     "express-ws": "^5.0.2",
     "expresse": "^1.0.2",
-    "ws": "^8.14.2"
+    "ws": "^8.14.2",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-ligatures": "^0.7.0",
+    "xterm-addon-search": "^0.13.0",
+    "xterm-addon-serialize": "^0.11.0",
+    "xterm-addon-unicode11": "^0.6.0",
+    "xterm-addon-web-links": "^0.9.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.20",
