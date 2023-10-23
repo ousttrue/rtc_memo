@@ -4,8 +4,8 @@ const app = express();
 import http from 'http'
 import os from 'os'
 const server = new http.Server(app);
-// import nodePty from 'node-pty'
-import nodePty from '@homebridge/node-pty-prebuilt-multiarch'
+import nodePty from 'node-pty'
+// import nodePty from '@homebridge/node-pty-prebuilt-multiarch'
 import { WebSocketServer } from 'ws';
 
 app.use('/', express.static('.'));

@@ -19,6 +19,8 @@ A-Frame と合体するべく情報収集。
 - [ ] websocket signaling: https(オレオレ) + datachannel
 - [ ] [websocket signaling: https(オレオレ) + mediachannel + webxr(quest)](./rtc_xr/README.md)
 
+- [ ] [xterm](./xterm/README.md)
+
 [webpage の hosting や signaling 向けの websocket](./server/README.md)
 
 # whip
