@@ -1,12 +1,13 @@
 {
-    "compilerOptions": {
-        "moduleResolution": "node",
-        "module": "ES2022",
-        "target": "ES2021",
-        "checkJs": true,
-        "allowSyntheticDefaultImports": true
-    },
-    "exclude": [
-        // "node_modules"
-    ]
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "module": "nodeNext",
+    "target": "ES2021",
+    "checkJs": true,
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true
+  },
+  "exclude": [
+    // "node_modules"
+  ]
 }

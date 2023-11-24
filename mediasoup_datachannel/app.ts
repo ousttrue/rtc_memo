@@ -15,7 +15,9 @@ const PORT = 3000;
 class Dispatcher {
   methodMap: Map<string, Function> = new Map();
 
-  register(method: string, func: Function) { }
+  register(method: string, func: Function) {
+    this.methodMap.set(method, func);
+  }
 
   async dispatch<T>(id: number, method: string, params?: any): Promise<T> {
     const func = this.methodMap.get(method);
@@ -38,6 +40,7 @@ class Connection {
     ws.addEventListener('message', async (event: WebSocket.MessageEvent) => {
       if (typeof (event.data) == 'string') {
         const msg = JSON.parse(event.data);
+        console.log(msg);
         if (msg.id && msg.method) {
           try {
             const result = await this.dispatcher.dispatch(
@@ -47,6 +50,7 @@ class Connection {
               id: msg.id,
               result,
             });
+            console.log(response);
             this.ws.send(response);
           }
           catch (error) {
@@ -55,6 +59,7 @@ class Connection {
               id: msg.id,
               error: (error as Error).message,
             });
+            console.log(response);
             this.ws.send(response);
             console.error(error);
           }
@@ -70,7 +75,8 @@ class Connection {
   }
 }
 
-async function start(): Pomise<void> {
+
+async function start(): Promise<void> {
   //
   // MediaSoup
   // 
@@ -97,7 +103,8 @@ async function start(): Pomise<void> {
     };
   }
 
-
+  const producerList: { [key: string]: any } = {};
+  const consumerList: { [key: string]: any } = {};
   const dispatcher = new Dispatcher();
   dispatcher.register('get-rtp-capabilities',
     async () => Promise.resolve(router.rtpCapabilities));
@@ -108,7 +115,7 @@ async function start(): Pomise<void> {
         transport.producer.close();
         transport.producer = null;
         delete producerList[transport.id];
-        transport = null;
+        // transport = null;
       });
       producerList[transport.id] = transport;
       return params;
@@ -195,13 +202,11 @@ async function start(): Pomise<void> {
   });
 
   const connectionMap: Map<WebSocket, Connection> = new Map();
-  // let producerList = {};
-  // let consumerList = {};
 
 
   const wss = new WebSocketServer({ server });
   wss.on('connection', ws => {
-    console.log(ws);
+    console.log('connected');
     const c = new Connection(ws, dispatcher);
     connectionMap.set(ws, c);
   });
