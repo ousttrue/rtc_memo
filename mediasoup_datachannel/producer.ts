@@ -19,6 +19,7 @@ class VideoCanvas {
         navigator.mediaDevices
           .getDisplayMedia({ video: true, audio: false })
           .then((stream) => {
+            buttonStart.disabled = true;
             this.video.srcObject = stream;
             this.video.play();
             resolve();
@@ -40,8 +41,9 @@ class VideoCanvas {
 
 class Producer {
   timerId = null;
-  msDevice = null;
-  msTransport = null;
+  msDevice: MediasoupClient.Device | null = null;
+  msTransport: MediasoupClient.types.Transport | null = null;
+  msProducer: MediasoupClient.types.DataProducer | null = null;
   constructor(
     public readonly sock: SocketIOLike,
   ) {
@@ -49,7 +51,7 @@ class Producer {
 
   // MediaSoupを利用する場合、一番最初にDeviceオブジェクトを準備する
   async createDevice() {
-    const rtpCap = await this.sock.sendRequest("get-rtp-capabilities", {});
+    const rtpCap = await this.sock.reqeustAsync("get-rtp-capabilities", {});
     const device = new MediasoupClient.Device();
     await device.load({ routerRtpCapabilities: rtpCap });
     this.msDevice = device;
@@ -57,18 +59,19 @@ class Producer {
 
   // Deviceから通信用オブジェクトTransportを生成する
   async createTransport() {
-    const params = await this.sock.sendRequest(
+    const params: any = await this.sock.reqeustAsync(
       "create-producer-transport",
       {},
     );
-    const transport = this.msDevice.createSendTransport(params);
+    this.msTransport = this.msDevice.createSendTransport(params);
 
     // connectイベントが発生したらパラメータを送信してサーバー側でWebRtcTransport.connect()を実行する
-    transport.on(
+    this.msTransport.on(
       "connect",
       async ({ dtlsParameters }, callback, errback) => {
-        this.sock.sendRequest("connect-producer-transport", {
-          transportId: transport.id,
+        console.log('transport.connect');
+        this.sock.reqeustAsync("connect-producer-transport", {
+          transportId: this.msTransport.id,
           dtlsParameters: dtlsParameters,
         })
           .then(callback)
@@ -77,10 +80,11 @@ class Producer {
     );
 
     // producedataイベントが発生したらパラメータを送信してサーバー側でDataProducerを生成する
-    transport.on("producedata", async (parameters, callback, errback) => {
+    this.msTransport.on("producedata", async (parameters, callback, errback) => {
+      console.log('transport.producedata');
       try {
-        const id = await this.sock.sendRequest("produce-data", {
-          transportId: transport.id,
+        const id = await this.sock.reqeustAsync<string>("produce-data", {
+          transportId: this.msTransport.id,
           produceParameters: parameters,
         });
         callback({ id: id });
@@ -88,27 +92,39 @@ class Producer {
         errback(err);
       }
     });
-
-    this.msTransport = transport;
   }
 
   // Transportからデータ送信用のDataProducerを生成する
   async createProducer(videoCanvas: VideoCanvas, interval: number = 3000) {
-    const producer = await this.msTransport.produceData();
+    this.msProducer = await this.msTransport.produceData();
+    console.log(this.msProducer);
 
-    producer.on("open", () => {
+    const callback = () => {
+      console.log('producer.open');
       const callback = () => {
         videoCanvas.blit((blob) => {
           const reader = new FileReader();
           reader.onloadend = () => {
             // 画面共有の画像データを送信
-            producer.send(reader.result);
+            console.log('producer.send');
+            this.msProducer.send(reader.result);
           };
           reader.readAsArrayBuffer(blob);
         });
       };
       this.timerId = setInterval(callback, interval);
-    });
+    };
+
+    // https://mediasoup.discourse.group/t/dataproducer-on-open-close-error-events/4068
+    console.log(`state: ${this.msProducer.readyState}`);
+    if (this.msProducer.readyState == "open") {
+      console.log('already open');
+      callback();
+    }
+    else {
+      console.log('wait open...');
+      this.msProducer.on("open", callback);
+    }
   }
 }
 
@@ -136,6 +152,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
     );
     await videoCanvas.play(buttonStart);
     await producer.createProducer(videoCanvas);
+
     console.log('done');
   });
 });
