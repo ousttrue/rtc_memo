@@ -7,48 +7,78 @@ const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const buttonStart = document.getElementById("start");
 
-let producer;
 
-function start() {
-  buttonStart.disabled = true;
-  video.style.width = canvasWidth + "px";
-  video.style.height = canvasHeight + "px";
+type RpcRequest = {
+  resolve: Function;
+  reject: Function;
+};
 
-  navigator.mediaDevices
-    .getDisplayMedia({ video: true, audio: false })
-    .then((stream) => {
-      video.srcObject = stream;
-      video.play();
-
-      producer = new Producer();
-      producer.join();
+class SocketIOLike {
+  requestId = 1;
+  requestMap: Map<number, RpcRequest> = new Map();
+  constructor(public readonly ws: WebSocket) {
+    ws.addEventListener('message', (event: MessageEvent) => {
+      if (typeof (event.data) == 'string') {
+        const msg = JSON.parse(event.data);
+        if (msg.id != null) {
+          const req = this.requestMap.get(msg.id);
+          if (req) {
+            if (msg.result) {
+              req.resolve(msg.result);
+            }
+            else if (msg.error) {
+              req.reject(msg.error);
+            }
+            else {
+              console.warn(`unknown: ${event.data}`);
+            }
+          }
+          else {
+            console.error(`no id: ${msg}`);
+          }
+        }
+        else {
+          console.warn(`unknown: ${event.data}`);
+        }
+      }
+      else {
+        console.log(event.data);
+      }
     });
+  }
+
+  sendRequest<T>(type: string, data: any): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const id = this.requestId++;
+      this.requestMap.set(id, { resolve, reject });
+      const msg = JSON.stringify({
+        jsonrpc: "2.0",
+        method: type,
+        params: data,
+        id,
+      })
+      console.log(`=> ${msg}`);
+      this.ws.send(msg);
+    });
+  }
 }
 
 class Producer {
-  constructor() {
-    this.timerId = null;
-    this.sock = null;
-    this.msDevice = null;
-    this.msTransport = null;
+  timerId = null;
+  msDevice = null;
+  msTransport = null;
+  constructor(public readonly sock: SocketIOLike) {
   }
 
   async join() {
-    await this.createWebSocket();
     await this.createDevice();
     await this.createTransport();
     await this.createProducer();
   }
 
-  // WebSocketの生成
-  async createWebSocket() {
-    const sock = io("/");
-    this.sock = sock;
-  }
-
   // MediaSoupを利用する場合、一番最初にDeviceオブジェクトを準備する
   async createDevice() {
-    const rtpCap = await this.sendRequest("get-rtp-capabilities", {});
+    const rtpCap = await this.sock.sendRequest("get-rtp-capabilities", {});
     const device = new MediasoupClient.Device();
     await device.load({ routerRtpCapabilities: rtpCap });
     this.msDevice = device;
@@ -114,12 +144,6 @@ class Producer {
     });
   }
 
-  // WebSocket通信用共通メソッド
-  sendRequest(type, data) {
-    return new Promise((resolve, reject) => {
-      this.sock.emit(type, data, (res) => resolve(res));
-    });
-  }
 }
 
 document.addEventListener("DOMContentLoaded", (_) => {
@@ -131,10 +155,28 @@ document.addEventListener("DOMContentLoaded", (_) => {
     + location.hostname
     + (location.port ? `:${location.port}` : '')
     + '/';
-  const sock = new WebSocket(wsUrl);
+  const ws = new WebSocket(wsUrl);
   console.log(`connect: ${wsUrl}...`);
 
-  sock.addEventListener('open', ws => {
+  ws.addEventListener('open', async _ => {
     console.log(`open`, ws);
+    const sock = new SocketIOLike(ws);
+    const producer = new Producer(sock);
+    await producer.join();
+
+    // buttonStart.disabled = true;
+    // video.style.width = canvasWidth + "px";
+    // video.style.height = canvasHeight + "px";
+
+    // navigator.mediaDevices
+    //   .getDisplayMedia({ video: true, audio: false })
+    //   .then((stream) => {
+    //     video.srcObject = stream;
+    //     video.play();
+    //
+    //     producer = new Producer();
+    //     producer.join();
+    //   });
+
   });
 });
