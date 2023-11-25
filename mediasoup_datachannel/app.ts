@@ -13,10 +13,95 @@ const __dirname = path.dirname(__filename);
 const PORT = 3000;
 
 
+class NewProducerEvent extends Event {
+  constructor(public readonly producerId: string) {
+    super('new-producer');
+  }
+}
+
+
+class ProducerSession extends EventTarget {
+  producer: mediasoup.types.DataProducer | null = null;
+
+  constructor(
+    public readonly sock: SocketIOLike,
+    public readonly transport: mediasoup.types.Transport,
+  ) {
+    super();
+
+    transport.observer.on('close', () => {
+      console.log(`close [${sock.socketId}]`);
+      this.producer.close();
+      this.producer = null;
+      // onClose();
+      this.dispatchEvent(new Event('close'));
+    });
+
+    sock.on('connect-producer-transport',
+      async (req, response) => {
+        // const transport = this.producerList[req.transportId];
+        await transport.connect({ dtlsParameters: req.dtlsParameters });
+        response({});
+      }
+    );
+
+    sock.on('produce-data',
+      async (req, response) => {
+        // const transport = this.producerList[req.transportId];
+        this.producer = await transport.produceData(req.produceParameters);
+        response(this.producer.id);
+
+        this.dispatchEvent(new NewProducerEvent(this.producer.id));
+      }
+    );
+  }
+}
+
+
+class ConsumerSession extends EventTarget {
+  consumer: mediasoup.types.DataConsumer | null = null;
+  constructor(
+    public readonly sock: SocketIOLike,
+    public readonly transport: mediasoup.types.Transport,
+  ) {
+    super();
+    transport.observer.on('close', () => {
+      console.log(`close [${sock.socketId}]`);
+      this.consumer.close();
+      this.consumer = null;
+      this.dispatchEvent(new Event('close'));
+    });
+    console.log('add consumerList');
+
+    sock.on('connect-consumer-transport',
+      async (req, response) => {
+        // const transport = this.consumerList[req.transportId];
+        await transport.connect({ dtlsParameters: req.dtlsParameters });
+        response({});
+      }
+    );
+
+    sock.on('consume-data',
+      async (req, response) => {
+        // const transport = this.consumerList[req.transportId];
+        this.consumer = await transport.consumeData(req.consumeParameters);
+        const params = {
+          id: this.consumer.id,
+          dataProducerId: this.consumer.dataProducerId,
+          sctpStreamParameters: this.consumer.sctpStreamParameters,
+          label: this.consumer.label,
+          protocol: this.consumer.protocol,
+        };
+        response(params);
+      }
+    );
+  }
+}
+
+
 class WebSocketDispatcher {
-  producerList: { [key: string]: mediasoup.types.WebRtcTransport } = {};
-  consumerList: { [key: string]: mediasoup.types.WebRtcTransport } = {};
-  consumerConnections: SocketIOLike[] = []
+  producerMap: Map<SocketIOLike, ProducerSession> = new Map();
+  consumerMap: Map<SocketIOLike, ConsumerSession> = new Map();
 
   constructor(
     public readonly router: mediasoup.types.Router,
@@ -51,75 +136,37 @@ class WebSocketDispatcher {
     sock.on('create-producer-transport',
       async (_req, response) => {
         const { transport, params } = await this._createTransport();
-        transport.observer.on('close', () => {
-          transport.producer.close();
-          transport.producer = null;
-          delete this.producerList[transport.id];
+        const producer = new ProducerSession(sock, transport);
+
+        producer.addEventListener('close', () => {
+          this.producerMap.delete(sock);
         });
-        this.producerList[transport.id] = transport;
+        producer.addEventListener('new-producer', (event: NewProducerEvent) => {
+          // 新しいProducerをブロードキャストでConsumerへ通知
+          console.log('[broadcast]')
+          this.consumerMap.forEach((consumer) => {
+            consumer.sock.reqeustAsync('new-producer', {
+              producerId: event.producerId
+            });
+          });
+        });
+
+        this.producerMap.set(sock, producer);
         response(params);
-      }
-    );
-
-    sock.on('connect-producer-transport',
-      async (req, response) => {
-        const transport = this.producerList[req.transportId];
-        await transport.connect({ dtlsParameters: req.dtlsParameters });
-        response({});
-      }
-    );
-
-    sock.on('produce-data',
-      async (req, response) => {
-        const transport = this.producerList[req.transportId];
-        const dataProducer = await transport.produceData(req.produceParameters);
-        transport.producer = dataProducer;
-        response(dataProducer.id);
-
-        // 新しいProducerをブロードキャストでConsumerへ通知
-        console.log('[broadcast]')
-        for (const sock of this.consumerConnections) {
-          sock.reqeustAsync('new-producer', { producerId: dataProducer.id });
-        }
       }
     );
 
     sock.on('create-consumer-transport',
       async (_req, response) => {
         const { transport, params } = await this._createTransport();
-        transport.observer.on('close', () => {
-          transport.consumer.close();
-          transport.consumer = null;
-          delete this.consumerList[transport.id];
+        const consumer = new ConsumerSession(sock, transport);
+
+        consumer.addEventListener('close', () => {
+          this.consumerMap.delete(sock);
         });
-        console.log('add consumerList');
-        this.consumerList[transport.id] = transport;
-        this.consumerConnections.push(sock);
-        response(params);
-      }
-    );
 
-    sock.on('connect-consumer-transport',
-      async (req, response) => {
-        const transport = this.consumerList[req.transportId];
-        await transport.connect({ dtlsParameters: req.dtlsParameters });
-        response({});
-      }
-    );
-
-    sock.on('consume-data',
-      async (req, response) => {
-        const transport = this.consumerList[req.transportId];
-        const dataConsumer = await transport.consumeData(req.consumeParameters);
-        const params = {
-          id: dataConsumer.id,
-          dataProducerId: dataConsumer.dataProducerId,
-          sctpStreamParameters: dataConsumer.sctpStreamParameters,
-          label: dataConsumer.label,
-          protocol: dataConsumer.protocol,
-        };
+        this.consumerMap.set(sock, consumer);
         response(params);
-        transport.consumer = dataConsumer;
       }
     );
   }

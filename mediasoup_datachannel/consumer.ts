@@ -81,9 +81,6 @@ class Consumer {
 
 
 document.addEventListener("DOMContentLoaded", (_) => {
-  const buttonStart = document.getElementById("start") as HTMLButtonElement;
-  buttonStart.disabled = true;
-
   const wsUrl =
     (location.protocol === 'https:' ? 'wss://' : 'ws://')
     + location.hostname
