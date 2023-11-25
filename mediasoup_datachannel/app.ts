@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import express from 'express';
-import { createServer } from 'vite'
+import * as vite from 'vite'
 import mediasoup from 'mediasoup';
 import { SocketIOLike } from './socket.io.like.js';
 
@@ -13,21 +13,24 @@ const __dirname = path.dirname(__filename);
 const PORT = 3000;
 
 
-async function start(): Promise<void> {
-  //
-  // MediaSoup
-  // 
-  const worker = await mediasoup.createWorker();
-  const router = await worker.createRouter({});
-  const transportOption = {
+class WebSocketDispatcher {
+  producerList: { [key: string]: mediasoup.types.WebRtcTransport } = {};
+  consumerList: { [key: string]: mediasoup.types.WebRtcTransport } = {};
+  consumerConnections: SocketIOLike[] = []
+
+  constructor(
+    public readonly router: mediasoup.types.Router,
+  ) {
+  }
+
+  private async _createTransport(transportOption = {
     listenIps: [
       { ip: '127.0.0.1' }, // 👈 0.0.0.0 はだめ
     ],
     enableSctp: true,
-  };
-
-  async function createTransport() {
-    const transport = await router.createWebRtcTransport(transportOption);
+  }) {
+    const transport = await this.router.createWebRtcTransport(
+      transportOption);
     return {
       transport: transport,
       params: {
@@ -40,76 +43,42 @@ async function start(): Promise<void> {
     };
   }
 
-  //
-  // Http/WebSocket
-  //
-  const app = express();
-  const server = http.createServer(app)
-
-  createServer({
-    root: path.join(__dirname),
-    logLevel: 'info',
-    server: {
-      middlewareMode: true,
-      watch: {
-        usePolling: true,
-        interval: 100,
-      },
-    },
-  }).then(vite => {
-    app.use(vite.middlewares)
-  });
-  const wss = new WebSocketServer({ server });
-
-  const producerList: { [key: string]: mediasoup.types.WebRtcTransport } = {};
-  const consumerList: { [key: string]: mediasoup.types.WebRtcTransport } = {};
-
-  const consumerConnections: SocketIOLike[] = []
-
-  //
-  // bind websocket and mediasoup
-  //
-  wss.on('connection', ws => {
-    console.log('[WebSocket] new connection');
-    const sock = new SocketIOLike(ws, wss);
-
+  addConnection(sock: SocketIOLike) {
     sock.on('get-rtp-capabilities',
-      async (_req, response) => Promise.resolve(response(router.rtpCapabilities)));
+      async (_req, response) =>
+        Promise.resolve(response(this.router.rtpCapabilities)));
+
     sock.on('create-producer-transport',
       async (_req, response) => {
-        const { transport, params } = await createTransport();
+        const { transport, params } = await this._createTransport();
         transport.observer.on('close', () => {
           transport.producer.close();
           transport.producer = null;
-          delete producerList[transport.id];
-          // transport = null;
+          delete this.producerList[transport.id];
         });
-        producerList[transport.id] = transport;
+        this.producerList[transport.id] = transport;
         response(params);
       }
     );
+
     sock.on('connect-producer-transport',
       async (req, response) => {
-        const transport = producerList[req.transportId];
+        const transport = this.producerList[req.transportId];
         await transport.connect({ dtlsParameters: req.dtlsParameters });
         response({});
       }
     );
+
     sock.on('produce-data',
       async (req, response) => {
-        const transport = producerList[req.transportId];
+        const transport = this.producerList[req.transportId];
         const dataProducer = await transport.produceData(req.produceParameters);
         transport.producer = dataProducer;
         response(dataProducer.id);
 
         // 新しいProducerをブロードキャストでConsumerへ通知
         console.log('[broadcast]')
-        // wss.clients.forEach((cws) => {
-        //   if (cws != ws) {
-        //     sock.reqeustAsync('new-producer', { producerId: dataProducer.id });
-        //   }
-        // });
-        for (const sock of consumerConnections) {
+        for (const sock of this.consumerConnections) {
           sock.reqeustAsync('new-producer', { producerId: dataProducer.id });
         }
       }
@@ -117,29 +86,30 @@ async function start(): Promise<void> {
 
     sock.on('create-consumer-transport',
       async (_req, response) => {
-        const { transport, params } = await createTransport();
+        const { transport, params } = await this._createTransport();
         transport.observer.on('close', () => {
           transport.consumer.close();
           transport.consumer = null;
-          delete consumerList[transport.id];
-          transport = null;
+          delete this.consumerList[transport.id];
         });
         console.log('add consumerList');
-        consumerList[transport.id] = transport;
-        consumerConnections.push(sock);
+        this.consumerList[transport.id] = transport;
+        this.consumerConnections.push(sock);
         response(params);
       }
     );
+
     sock.on('connect-consumer-transport',
       async (req, response) => {
-        const transport = consumerList[req.transportId];
+        const transport = this.consumerList[req.transportId];
         await transport.connect({ dtlsParameters: req.dtlsParameters });
         response({});
       }
     );
+
     sock.on('consume-data',
       async (req, response) => {
-        const transport = consumerList[req.transportId];
+        const transport = this.consumerList[req.transportId];
         const dataConsumer = await transport.consumeData(req.consumeParameters);
         const params = {
           id: dataConsumer.id,
@@ -152,11 +122,52 @@ async function start(): Promise<void> {
         transport.consumer = dataConsumer;
       }
     );
+  }
+}
+
+
+async function start(): Promise<void> {
+  //
+  // MediaSoup
+  // 
+  const worker = await mediasoup.createWorker();
+  const router = await worker.createRouter({});
+  const dispatcher = new WebSocketDispatcher(router);
+
+  //
+  // Http/WebSocket
+  //
+  const app = express();
+  const server = http.createServer(app)
+
+  // express.static alternative
+  vite.createServer({
+    root: path.join(__dirname),
+    logLevel: 'info',
+    server: {
+      middlewareMode: true,
+      watch: {
+        usePolling: true,
+        interval: 100,
+      },
+    },
+  }).then(vite => {
+    app.use(vite.middlewares)
+  });
+
+  const wss = new WebSocketServer({ server });
+
+  wss.on('connection', ws => {
+    console.log('[WebSocket] new connection');
+    const sock = new SocketIOLike(ws, wss);
+    //
+    // bind websocket and mediasoup
+    //
+    dispatcher.addConnection(sock);
   });
 
   console.log(`listen: http://localhost:${PORT}/producer.html ...`);
   console.log(`listen: http://localhost:${PORT}/consumer.html ...`);
   server.listen(PORT);
 }
-
-start().then(() => console.log('end'));
+start()
