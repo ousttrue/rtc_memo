@@ -3,56 +3,32 @@ import { SocketIOLike } from './socket.io.like.js';
 
 
 class Consumer {
-  msDevice: MediasoupClient.types.Device | null = null;
-  msTransport: MediasoupClient.types.Transport | null = null;
+  device = new MediasoupClient.Device();
+  transport: MediasoupClient.types.Transport | null = null;
+  consumer: MediasoupClient.types.DataConsumer | null = null;
   constructor(public readonly sock: SocketIOLike) {
-    // サーバーから新しいProducerの通知を受信したらDataConsumerを生成する
-    sock.on("new-producer", async (data: { producerId: number }) => {
-      console.log('new-producer');
-      const params = await this.sock.reqeustAsync("consume-data", {
-        transportId: this.msTransport.id,
-        consumeParameters: {
-          dataProducerId: data.producerId,
-        },
-      });
-
-      const consumer = await this.msTransport.consumeData(params);
-
-      // 画面共有の画像データを受信
-      consumer.on("message", (msg) => {
-        console.log('consumer.message');
-        this.addOrUpdateScreen(data.producerId, msg);
-      });
+    sock.on("new-producer", async (data: { producerId: string }) => {
+      await this._createConsumer(data.producerId);
     });
   }
 
-  // MediaSoupを利用する場合、一番最初にDeviceオブジェクトを準備する
-  async createDevice() {
-    const rtpCap = await this.sock.reqeustAsync("get-rtp-capabilities", {});
-    this.msDevice = new MediasoupClient.Device();
-    await this.msDevice.load({ routerRtpCapabilities: rtpCap });
-  }
+  async createTransport(rtpCap: MediasoupClient.types.RtpCapabilities) {
+    await this.device.load({ routerRtpCapabilities: rtpCap });
 
-  // Deviceから通信用オブジェクトTransportを生成する
-  async createTransport() {
-    const params = await this.sock.reqeustAsync(
-      "create-consumer-transport",
-      {}
-    );
-    this.msTransport = this.msDevice.createRecvTransport(params);
+    const params: any = await this.sock.reqeustAsync(
+      "create-consumer-transport", {});
+    this.transport = this.device.createRecvTransport(params);
 
-    // connectイベントが発生したらパラメータを送信してサーバー側でWebRtcTransport.connect()を実行する
-    this.msTransport.on(
+    this.transport.on(
       "connect",
       async ({ dtlsParameters }, callback, errback) => {
         console.log('transport.connect');
         try {
-          const res = await this.sock.reqeustAsync("connect-consumer-transport", {
-            transportId: this.msTransport.id,
+          await this.sock.reqeustAsync("connect-consumer-transport", {
+            transportId: this.transport.id,
             dtlsParameters: dtlsParameters,
           });
-          console.log(res);
-          callback(res);
+          callback();
         }
         catch (err) {
           errback(err);
@@ -61,8 +37,21 @@ class Consumer {
     );
   }
 
-  // ProducerのIDで検索し、画面共有画像の更新または追加をおこなう
-  addOrUpdateScreen(producerId, imageData) {
+  private async _createConsumer(dataProducerId: string) {
+    const params: any = await this.sock.reqeustAsync("consume-data", {
+      transportId: this.transport.id,
+      consumeParameters: {
+        dataProducerId,
+      },
+    });
+    this.consumer = await this.transport.consumeData(params);
+    this.consumer.on("message", (msg) => {
+      console.log('consumer.message');
+      this._addOrUpdateScreen(dataProducerId, msg);
+    });
+  }
+
+  private _addOrUpdateScreen(producerId: string, imageData: any) {
     let div = document.getElementById(producerId);
     if (div == null) {
       div = document.createElement("div");
@@ -92,9 +81,9 @@ document.addEventListener("DOMContentLoaded", (_) => {
   ws.addEventListener('open', async _ => {
     console.log(`open`, ws);
     const sock = new SocketIOLike(ws);
-    const producer = new Consumer(sock);
-
-    await producer.createDevice();
-    await producer.createTransport();
+    sock.on('rtp-capabilities', async (rtpCap) => {
+      const producer = new Consumer(sock);
+      await producer.createTransport(rtpCap);
+    });
   });
 });

@@ -11,8 +11,9 @@ class VideoCanvas {
     public readonly canvasHeight = 180,
   ) { }
 
-  async play(buttonStart: HTMLButtonElement): Promise<void> {
-    return new Promise((resolve, reject) => {
+  async waitButton(buttonStart: HTMLButtonElement): Promise<void> {
+    return new Promise((resolve) => {
+      buttonStart.disabled = false;
       buttonStart.addEventListener('click', () => {
         this.video.style.width = this.canvasWidth + "px";
         this.video.style.height = this.canvasHeight + "px";
@@ -25,7 +26,6 @@ class VideoCanvas {
             resolve();
           });
       });
-      buttonStart.disabled = false;
     });
   }
 
@@ -41,37 +41,30 @@ class VideoCanvas {
 
 class Producer {
   timerId = null;
-  msDevice: MediasoupClient.Device | null = null;
-  msTransport: MediasoupClient.types.Transport | null = null;
-  msProducer: MediasoupClient.types.DataProducer | null = null;
+  device: MediasoupClient.Device = new MediasoupClient.Device();
+  transport: MediasoupClient.types.Transport | null = null;
+  producer: MediasoupClient.types.DataProducer | null = null;
   constructor(
     public readonly sock: SocketIOLike,
   ) {
   }
 
-  // MediaSoupを利用する場合、一番最初にDeviceオブジェクトを準備する
-  async createDevice() {
-    const rtpCap = await this.sock.reqeustAsync("get-rtp-capabilities", {});
-    const device = new MediasoupClient.Device();
-    await device.load({ routerRtpCapabilities: rtpCap });
-    this.msDevice = device;
-  }
+  async createTransport(rtpCap: MediasoupClient.types.RtpCapabilities) {
+    await this.device.load({ routerRtpCapabilities: rtpCap });
 
-  // Deviceから通信用オブジェクトTransportを生成する
-  async createTransport() {
     const params: any = await this.sock.reqeustAsync(
       "create-producer-transport",
       {},
     );
-    this.msTransport = this.msDevice.createSendTransport(params);
+    this.transport = this.device.createSendTransport(params);
 
     // connectイベントが発生したらパラメータを送信してサーバー側でWebRtcTransport.connect()を実行する
-    this.msTransport.on(
+    this.transport.on(
       "connect",
       async ({ dtlsParameters }, callback, errback) => {
         console.log('transport.connect');
         this.sock.reqeustAsync("connect-producer-transport", {
-          transportId: this.msTransport.id,
+          transportId: this.transport.id,
           dtlsParameters: dtlsParameters,
         })
           .then(callback)
@@ -80,11 +73,11 @@ class Producer {
     );
 
     // producedataイベントが発生したらパラメータを送信してサーバー側でDataProducerを生成する
-    this.msTransport.on("producedata", async (parameters, callback, errback) => {
+    this.transport.on("producedata", async (parameters, callback, errback) => {
       console.log('transport.producedata');
       try {
         const id = await this.sock.reqeustAsync<string>("produce-data", {
-          transportId: this.msTransport.id,
+          transportId: this.transport.id,
           produceParameters: parameters,
         });
         callback({ id: id });
@@ -96,35 +89,26 @@ class Producer {
 
   // Transportからデータ送信用のDataProducerを生成する
   async createProducer(videoCanvas: VideoCanvas, interval: number = 3000) {
-    this.msProducer = await this.msTransport.produceData();
-    console.log(this.msProducer);
+    this.producer = await this.transport.produceData();
+    console.log(this.producer);
 
-    const callback = () => {
+    // https://mediasoup.discourse.group/t/dataproducer-on-open-close-error-events/4068
+    console.log(`state: ${this.producer.readyState}`);
+    this.producer.on("open", () => {
       console.log('producer.open');
-      const callback = () => {
+      const sendFrame = () => {
         videoCanvas.blit((blob) => {
           const reader = new FileReader();
           reader.onloadend = () => {
             // 画面共有の画像データを送信
             console.log('producer.send');
-            this.msProducer.send(reader.result);
+            this.producer.send(reader.result);
           };
           reader.readAsArrayBuffer(blob);
         });
       };
-      this.timerId = setInterval(callback, interval);
-    };
-
-    // https://mediasoup.discourse.group/t/dataproducer-on-open-close-error-events/4068
-    console.log(`state: ${this.msProducer.readyState}`);
-    if (this.msProducer.readyState == "open") {
-      console.log('already open');
-      callback();
-    }
-    else {
-      console.log('wait open...');
-      this.msProducer.on("open", callback);
-    }
+      this.timerId = setInterval(sendFrame, interval);
+    });
   }
 }
 
@@ -143,16 +127,16 @@ document.addEventListener("DOMContentLoaded", (_) => {
   ws.addEventListener('open', async _ => {
     console.log(`open`, ws);
     const sock = new SocketIOLike(ws);
-    const producer = new Producer(sock);
-    await producer.createDevice();
-    await producer.createTransport();
-    const videoCanvas = new VideoCanvas(
-      document.getElementById("video") as HTMLVideoElement,
-      document.getElementById("canvas") as HTMLCanvasElement
-    );
-    await videoCanvas.play(buttonStart);
-    await producer.createProducer(videoCanvas);
-
-    console.log('done');
+    sock.on('rtp-capabilities', async (rtpCap) => {
+      const producer = new Producer(sock);
+      await producer.createTransport(rtpCap);
+      const videoCanvas = new VideoCanvas(
+        document.getElementById("video") as HTMLVideoElement,
+        document.getElementById("canvas") as HTMLCanvasElement
+      );
+      await videoCanvas.waitButton(buttonStart);
+      await producer.createProducer(videoCanvas);
+      console.log('done');
+    });
   });
 });

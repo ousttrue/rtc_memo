@@ -129,10 +129,6 @@ class WebSocketDispatcher {
   }
 
   addConnection(sock: SocketIOLike) {
-    sock.on('get-rtp-capabilities',
-      async (_req, response) =>
-        Promise.resolve(response(this.router.rtpCapabilities)));
-
     sock.on('create-producer-transport',
       async (_req, response) => {
         const { transport, params } = await this._createTransport();
@@ -145,7 +141,7 @@ class WebSocketDispatcher {
           // 新しいProducerをブロードキャストでConsumerへ通知
           console.log('[broadcast]')
           this.consumerMap.forEach((consumer) => {
-            consumer.sock.reqeustAsync('new-producer', {
+            consumer.sock.notify('new-producer', {
               producerId: event.producerId
             });
           });
@@ -207,6 +203,9 @@ async function start(): Promise<void> {
   wss.on('connection', ws => {
     console.log('[WebSocket] new connection');
     const sock = new SocketIOLike(ws, wss);
+
+    sock.notify('rtp-capabilities', router.rtpCapabilities);
+
     //
     // bind websocket and mediasoup
     //

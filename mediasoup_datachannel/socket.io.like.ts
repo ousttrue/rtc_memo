@@ -1,5 +1,3 @@
-import WebSocket from 'ws';
-
 let socketId = 1;
 
 type RpcRequest = {
@@ -18,7 +16,7 @@ export class SocketIOLike {
   methodMap: Map<string, ResponseCallback> = new Map();
 
   constructor(
-    public readonly ws: WebSocket,
+    public readonly ws: any,
     public readonly wss?: any) {
     this.socketId = socketId++;
     ws.onmessage = (event: any) => {
@@ -92,10 +90,29 @@ export class SocketIOLike {
         console.warn(`unknown: ${msg}`);
       }
     }
-    else {
-      // nofity ?
-      console.warn(`not implement: ${msg}`);
+    else if (msg.method) {
+      // notify
+      const callback = this.methodMap.get(msg.method);
+      if (callback) {
+        await callback(msg.params, (result) => { /* do nothing */ });
+      }
+      else {
+        this.sendError(-1, `${msg.method} not found`);
+      }
     }
+    else {
+      console.warn(`invalid: ${msg}`);
+    }
+  }
+
+  notify(method: string, data: any) {
+    const msg = JSON.stringify({
+      jsonrpc: "2.0",
+      method,
+      params: data,
+    })
+    console.log(`[${this.socketId}] --> ${msg}`);
+    this.ws.send(msg);
   }
 
   reqeustAsync<T>(method: string, data: any): Promise<T> {
