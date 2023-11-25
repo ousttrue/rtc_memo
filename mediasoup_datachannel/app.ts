@@ -21,7 +21,7 @@ async function start(): Promise<void> {
   const router = await worker.createRouter({});
   const transportOption = {
     listenIps: [
-      { ip: '0.0.0.0' },
+      { ip: '127.0.0.1' }, // 👈 0.0.0.0 はだめ
     ],
     enableSctp: true,
   };
