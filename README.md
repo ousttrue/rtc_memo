@@ -10,7 +10,7 @@ A-Frame と合体するべく情報収集。
   - [x] [手動signaling: browser と libdatachannel(c++)](./libdatachannel/README.md)
   - [ ] 手動signaling: browser と pion(go)
 - [x] [websocket signaling: datachannel](./ws_datachannel/README.md)
-  - [x] [websocket signaling: browser と mediasoup(js)](./mediasoup_datachannel/README.md)
+  - [x] [websocket signaling: browser と mediasoup(js)](./mediasoup/README.md)
 - [x] [websocket signaling: mediachannel(webcam)](./ws_mediachannel/README.md)
   - [ ] [websocket signaling: mediachannel(canvas)](./mediachannel_canvas/README.md)
   - [ ] [websocket signaling: mediachannel(gstreamer)](./mediachannel_gst/README.md)
