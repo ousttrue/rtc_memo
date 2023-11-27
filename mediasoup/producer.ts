@@ -1,5 +1,8 @@
 import * as MediasoupClient from "mediasoup-client";
-import { SocketIOLike } from './socket.io.like.js';
+import {
+  WebSocketJsonRpc,
+  JsonRpcDispatcher, JsonRpcDispatchEvent
+} from '../ws-json-rpc.js';
 
 
 class VideoCanvas {
@@ -45,14 +48,14 @@ class Producer {
   transport: MediasoupClient.types.Transport | null = null;
   producer: MediasoupClient.types.DataProducer | null = null;
   constructor(
-    public readonly sock: SocketIOLike,
+    public readonly sock: WebSocketJsonRpc,
   ) {
   }
 
   async createTransport(rtpCap: MediasoupClient.types.RtpCapabilities) {
     await this.device.load({ routerRtpCapabilities: rtpCap });
 
-    const params: any = await this.sock.reqeustAsync(
+    const params: any = await this.sock.sendRequestAsync(
       "create-producer-transport",
       {},
     );
@@ -63,7 +66,7 @@ class Producer {
       "connect",
       async ({ dtlsParameters }, callback, errback) => {
         console.log('transport.connect');
-        this.sock.reqeustAsync("connect-producer-transport", {
+        this.sock.sendRequestAsync("connect-producer-transport", {
           transportId: this.transport.id,
           dtlsParameters: dtlsParameters,
         })
@@ -76,7 +79,7 @@ class Producer {
     this.transport.on("producedata", async (parameters, callback, errback) => {
       console.log('transport.producedata');
       try {
-        const id = await this.sock.reqeustAsync<string>("produce-data", {
+        const id = await this.sock.sendRequestAsync<string>("produce-data", {
           transportId: this.transport.id,
           produceParameters: parameters,
         });
@@ -112,6 +115,7 @@ class Producer {
   }
 }
 
+
 document.addEventListener("DOMContentLoaded", (_) => {
   const buttonStart = document.getElementById("start") as HTMLButtonElement;
   buttonStart.disabled = true;
@@ -126,8 +130,13 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
   ws.addEventListener('open', async _ => {
     console.log(`open`, ws);
-    const sock = new SocketIOLike(ws);
-    sock.on('rtp-capabilities', async (rtpCap) => {
+    const sock = new WebSocketJsonRpc(ws);
+    sock.debug = true;
+    const dispatcher = new JsonRpcDispatcher();
+    sock.addEventListener('json-rpc-dispatch', async (e) => {
+      await dispatcher.dispatchAsync((e as JsonRpcDispatchEvent).message, sock);
+    });
+    dispatcher.methodMap.set('rtp-capabilities', async (rtpCap) => {
       const producer = new Producer(sock);
       await producer.createTransport(rtpCap);
       const videoCanvas = new VideoCanvas(

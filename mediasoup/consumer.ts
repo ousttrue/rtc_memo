@@ -1,21 +1,27 @@
 import * as MediasoupClient from "mediasoup-client";
-import { SocketIOLike } from './socket.io.like.js';
+import {
+  WebSocketJsonRpc,
+  JsonRpcDispatcher, JsonRpcDispatchEvent
+} from '../ws-json-rpc.js';
 
 
 class Consumer {
   device = new MediasoupClient.Device();
   transport: MediasoupClient.types.Transport | null = null;
   consumer: MediasoupClient.types.DataConsumer | null = null;
-  constructor(public readonly sock: SocketIOLike) {
-    sock.on("new-producer", async (data: { producerId: string }) => {
-      await this._createConsumer(data.producerId);
-    });
+  constructor(
+    public readonly sock: WebSocketJsonRpc,
+    public readonly dispatcher: JsonRpcDispatcher) {
+    dispatcher.methodMap.set("new-producer",
+      async (data: { producerId: string }) => {
+        await this._createConsumer(data.producerId);
+      });
   }
 
   async createTransport(rtpCap: MediasoupClient.types.RtpCapabilities) {
     await this.device.load({ routerRtpCapabilities: rtpCap });
 
-    const params: any = await this.sock.reqeustAsync(
+    const params: any = await this.sock.sendRequestAsync(
       "create-consumer-transport", {});
     this.transport = this.device.createRecvTransport(params);
 
@@ -24,7 +30,7 @@ class Consumer {
       async ({ dtlsParameters }, callback, errback) => {
         console.log('transport.connect');
         try {
-          await this.sock.reqeustAsync("connect-consumer-transport", {
+          await this.sock.sendRequestAsync("connect-consumer-transport", {
             transportId: this.transport.id,
             dtlsParameters: dtlsParameters,
           });
@@ -38,7 +44,7 @@ class Consumer {
   }
 
   private async _createConsumer(dataProducerId: string) {
-    const params: any = await this.sock.reqeustAsync("consume-data", {
+    const params: any = await this.sock.sendRequestAsync("consume-data", {
       transportId: this.transport.id,
       consumeParameters: {
         dataProducerId,
@@ -80,10 +86,19 @@ document.addEventListener("DOMContentLoaded", (_) => {
 
   ws.addEventListener('open', async _ => {
     console.log(`open`, ws);
-    const sock = new SocketIOLike(ws);
-    sock.on('rtp-capabilities', async (rtpCap) => {
-      const producer = new Consumer(sock);
-      await producer.createTransport(rtpCap);
+    const sock = new WebSocketJsonRpc(ws);
+    sock.debug = true;
+
+    const dispatcher = new JsonRpcDispatcher();
+    sock.addEventListener('json-rpc-dispatch', async (e) => {
+      await dispatcher.dispatchAsync((e as JsonRpcDispatchEvent).message, sock);
     });
+
+    dispatcher.methodMap.set('rtp-capabilities',
+      async (rtpCap) => {
+        const producer = new Consumer(sock, dispatcher);
+        await producer.createTransport(rtpCap);
+      }
+    );
   });
 });

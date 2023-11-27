@@ -5,85 +5,109 @@ import { WebSocketServer } from 'ws';
 import express from 'express';
 import * as vite from 'vite'
 import mediasoup from 'mediasoup';
-import { SocketIOLike } from './socket.io.like.js';
+import {
+  WebSocketJsonRpc,
+  JsonRpcDispatcher, JsonRpcDispatchEvent
+} from '../ws-json-rpc.js';
 
 
+// @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = 3000;
 
+const TRANSPORT_OPTION = {
+  listenIps: [
+    { ip: '127.0.0.1' }, // 👈 0.0.0.0 はだめ
+  ],
+  enableSctp: true,
+}
 
-class NewProducerEvent extends Event {
+async function createTransport(router: mediasoup.types.Router) {
+  const transport = await router.createWebRtcTransport(
+    TRANSPORT_OPTION);
+  return {
+    transport: transport,
+    params: {
+      id: transport.id,
+      iceParameters: transport.iceParameters,
+      iceCandidates: transport.iceCandidates,
+      dtlsParameters: transport.dtlsParameters,
+      sctpParameters: transport.sctpParameters,
+    }
+  };
+}
+
+
+class NewDataProducerEvent extends Event {
   constructor(public readonly producerId: string) {
-    super('new-producer');
+    super('new-data-producer');
   }
 }
 
 
-class ProducerSession extends EventTarget {
+class DataProducerSession extends EventTarget {
   producer: mediasoup.types.DataProducer | null = null;
 
   constructor(
-    public readonly sock: SocketIOLike,
+    public readonly sock: WebSocketJsonRpc,
+    public readonly dispatcher: JsonRpcDispatcher,
     public readonly transport: mediasoup.types.Transport,
   ) {
     super();
 
     transport.observer.on('close', () => {
-      console.log(`close [${sock.socketId}]`);
+      console.log(`close [${sock.id}]`);
       this.producer.close();
       this.producer = null;
       // onClose();
       this.dispatchEvent(new Event('close'));
     });
 
-    sock.on('connect-producer-transport',
-      async (req, response) => {
-        // const transport = this.producerList[req.transportId];
+    dispatcher.methodMap.set('connect-producer-transport',
+      async (req) => {
         await transport.connect({ dtlsParameters: req.dtlsParameters });
-        response({});
+        ;
       }
     );
 
-    sock.on('produce-data',
-      async (req, response) => {
-        // const transport = this.producerList[req.transportId];
+    dispatcher.methodMap.set('produce-data',
+      async (req) => {
         this.producer = await transport.produceData(req.produceParameters);
-        response(this.producer.id);
 
-        this.dispatchEvent(new NewProducerEvent(this.producer.id));
+        this.dispatchEvent(new NewDataProducerEvent(this.producer.id));
+
+        return this.producer.id;
       }
     );
   }
 }
 
 
-class ConsumerSession extends EventTarget {
+class DataConsumerSession extends EventTarget {
   consumer: mediasoup.types.DataConsumer | null = null;
   constructor(
-    public readonly sock: SocketIOLike,
+    public readonly sock: WebSocketJsonRpc,
+    public readonly dispatcher: JsonRpcDispatcher,
     public readonly transport: mediasoup.types.Transport,
   ) {
     super();
     transport.observer.on('close', () => {
-      console.log(`close [${sock.socketId}]`);
+      console.log(`close [${sock.id}]`);
       this.consumer.close();
       this.consumer = null;
       this.dispatchEvent(new Event('close'));
     });
     console.log('add consumerList');
 
-    sock.on('connect-consumer-transport',
-      async (req, response) => {
-        // const transport = this.consumerList[req.transportId];
+    dispatcher.methodMap.set('connect-consumer-transport',
+      async (req) => {
         await transport.connect({ dtlsParameters: req.dtlsParameters });
-        response({});
       }
     );
 
-    sock.on('consume-data',
-      async (req, response) => {
-        // const transport = this.consumerList[req.transportId];
+    dispatcher.methodMap.set('consume-data',
+      async (req) => {
         this.consumer = await transport.consumeData(req.consumeParameters);
         const params = {
           id: this.consumer.id,
@@ -92,7 +116,7 @@ class ConsumerSession extends EventTarget {
           label: this.consumer.label,
           protocol: this.consumer.protocol,
         };
-        response(params);
+        return params;
       }
     );
   }
@@ -100,69 +124,54 @@ class ConsumerSession extends EventTarget {
 
 
 class WebSocketDispatcher {
-  producerMap: Map<SocketIOLike, ProducerSession> = new Map();
-  consumerMap: Map<SocketIOLike, ConsumerSession> = new Map();
+  producerMap: Map<WebSocketJsonRpc, DataProducerSession> = new Map();
+  consumerMap: Map<WebSocketJsonRpc, DataConsumerSession> = new Map();
 
   constructor(
     public readonly router: mediasoup.types.Router,
   ) {
   }
 
-  private async _createTransport(transportOption = {
-    listenIps: [
-      { ip: '127.0.0.1' }, // 👈 0.0.0.0 はだめ
-    ],
-    enableSctp: true,
-  }) {
-    const transport = await this.router.createWebRtcTransport(
-      transportOption);
-    return {
-      transport: transport,
-      params: {
-        id: transport.id,
-        iceParameters: transport.iceParameters,
-        iceCandidates: transport.iceCandidates,
-        dtlsParameters: transport.dtlsParameters,
-        sctpParameters: transport.sctpParameters,
-      }
-    };
-  }
+  addConnection(sock: WebSocketJsonRpc) {
+    const dispatcher = new JsonRpcDispatcher();
+    sock.addEventListener('json-rpc-dispatch', async (e) => {
+      await dispatcher.dispatchAsync((e as JsonRpcDispatchEvent).message, sock);
+    });
 
-  addConnection(sock: SocketIOLike) {
-    sock.on('create-producer-transport',
-      async (_req, response) => {
-        const { transport, params } = await this._createTransport();
-        const producer = new ProducerSession(sock, transport);
+    dispatcher.methodMap.set('create-producer-transport',
+      async () => {
+        const { transport, params } = await createTransport(this.router);
+        const producer = new DataProducerSession(sock, dispatcher, transport);
 
         producer.addEventListener('close', () => {
           this.producerMap.delete(sock);
         });
-        producer.addEventListener('new-producer', (event: NewProducerEvent) => {
-          // 新しいProducerをブロードキャストでConsumerへ通知
+        producer.addEventListener('new-data-producer', (event) => {
+          // ブロードキャストでConsumerへ通知
           console.log('[broadcast]')
           this.consumerMap.forEach((consumer) => {
-            consumer.sock.notify('new-producer', {
-              producerId: event.producerId
+            consumer.sock.sendNotify('new-producer', {
+              producerId: (event as NewDataProducerEvent).producerId
             });
           });
         });
 
         this.producerMap.set(sock, producer);
-        response(params);
+        return params;
       }
     );
 
-    sock.on('create-consumer-transport',
-      async (_req, response) => {
-        const { transport, params } = await this._createTransport();
-        const consumer = new ConsumerSession(sock, transport);
+    dispatcher.methodMap.set('create-consumer-transport',
+      async () => {
+        const { transport, params } = await createTransport(this.router);
+        const consumer = new DataConsumerSession(sock, dispatcher, transport);
 
         consumer.addEventListener('close', () => {
           this.consumerMap.delete(sock);
         });
 
         this.consumerMap.set(sock, consumer);
-        response(params);
+        return params;
       }
     );
   }
@@ -185,7 +194,7 @@ async function start(): Promise<void> {
 
   // express.static alternative
   vite.createServer({
-    root: path.join(__dirname),
+    root: path.join(__dirname, '..'),
     logLevel: 'info',
     server: {
       middlewareMode: true,
@@ -202,9 +211,10 @@ async function start(): Promise<void> {
 
   wss.on('connection', ws => {
     console.log('[WebSocket] new connection');
-    const sock = new SocketIOLike(ws, wss);
+    const sock = new WebSocketJsonRpc(ws);
+    sock.debug = true;
 
-    sock.notify('rtp-capabilities', router.rtpCapabilities);
+    sock.sendNotify('rtp-capabilities', router.rtpCapabilities);
 
     //
     // bind websocket and mediasoup
@@ -212,8 +222,8 @@ async function start(): Promise<void> {
     dispatcher.addConnection(sock);
   });
 
-  console.log(`listen: http://localhost:${PORT}/producer.html ...`);
-  console.log(`listen: http://localhost:${PORT}/consumer.html ...`);
+  console.log(`listen: http://localhost:${PORT}/mediasoup/producer.html ...`);
+  console.log(`listen: http://localhost:${PORT}/mediasoup/consumer.html ...`);
   server.listen(PORT);
 }
 start()
