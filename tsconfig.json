@@ -1,11 +1,21 @@
 {
+  "lib": [
+    "dom",
+    "dom.iterable",
+    "esnext"
+  ],
   "compilerOptions": {
     "moduleResolution": "node",
     "module": "nodeNext",
     "target": "ES2021",
     "checkJs": true,
-    "allowSyntheticDefaultImports": true,
-    "allowJs": true
+    // "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    // "isolatedModules": true,
+    // "noEmit": true,
+    "jsx": "preserve"
+    // "skipLibCheck": true,
+    // "esModuleInterop": true
   },
   "exclude": [
     // "node_modules"
