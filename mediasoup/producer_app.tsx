@@ -115,4 +115,42 @@ export class Producer {
   }
 }
 
+export default function App() {
+  const wsUrl =
+    (location.protocol === 'https:' ? 'wss://' : 'ws://')
+    + location.hostname
+    + (location.port ? `:${location.port}` : '')
+    + '/';
+  const ws = new WebSocket(wsUrl);
+  console.log(`connect: ${wsUrl}...`);
 
+  ws.addEventListener('open', async _ => {
+    console.log(`open`, ws);
+    const sock = new WebSocketJsonRpc(ws);
+    sock.debug = true;
+    const dispatcher = new JsonRpcDispatcher();
+    sock.addEventListener('json-rpc-dispatch', async (e) => {
+      await dispatcher.dispatchAsync((e as JsonRpcDispatchEvent).message, sock);
+    });
+    dispatcher.methodMap.set('rtp-capabilities', async (rtpCap) => {
+      const producer = new Producer(sock);
+      await producer.createTransport(rtpCap);
+      // const videoCanvas = new VideoCanvas(
+      //   document.getElementById("video") as HTMLVideoElement,
+      //   document.getElementById("canvas") as HTMLCanvasElement
+      // );
+      // const buttonStart = document.getElementById("start") as HTMLButtonElement;
+      // await videoCanvas.waitButton(buttonStart);
+      // await producer.createProducer(videoCanvas);
+      console.log('done');
+    });
+  });
+
+  return (
+    <>
+      <p><button id="start" disabled={true}> 送信開始 </button></p>
+      <video id="video" > </video>
+      <canvas id="canvas" style={{ display: 'none' }}> </canvas>
+    </>
+  );
+}
