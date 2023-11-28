@@ -102,7 +102,7 @@ export class WebSocketJsonRpc extends EventTarget {
         params,
       }
       if (this.debug) {
-        console.log(`[${this.id}] ==> (${id}) ${method}`);
+        console.log(`[${this.id}] ==> {id: ${id}, request: ${method}}`);
       }
       this.ws.send(JSON.stringify(msg));
     });

@@ -18,7 +18,7 @@ const PORT = 3000;
 
 const TRANSPORT_OPTION = {
   listenIps: [
-    { ip: '127.0.0.1' }, // 👈 0.0.0.0 はだめ
+    { ip: '127.0.0.1' }, // 👈 0.0.0.0 はだめ127.0.0.1 は環境による？
   ],
   enableSctp: true,
 }
@@ -77,7 +77,7 @@ class DataProducerSession extends EventTarget {
 
         this.dispatchEvent(new NewDataProducerEvent(this.producer.id));
 
-        return this.producer.id;
+        return { id: this.producer.id };
       }
     );
   }

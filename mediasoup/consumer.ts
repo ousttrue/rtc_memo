@@ -27,18 +27,12 @@ class Consumer {
 
     this.transport.on(
       "connect",
-      async ({ dtlsParameters }, callback, errback) => {
+      ({ dtlsParameters }, callback, errback) => {
         console.log('transport.connect');
-        try {
-          await this.sock.sendRequestAsync("connect-consumer-transport", {
-            transportId: this.transport.id,
-            dtlsParameters: dtlsParameters,
-          });
-          callback();
-        }
-        catch (err) {
-          errback(err);
-        }
+        this.sock.sendRequestAsync("connect-consumer-transport", {
+          transportId: this.transport.id,
+          dtlsParameters: dtlsParameters,
+        }).then(callback).catch(errback);
       }
     );
   }

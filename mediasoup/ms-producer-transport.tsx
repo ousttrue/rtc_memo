@@ -24,52 +24,39 @@ export class ProducerTransport {
     );
     this.transport = this.device.createSendTransport(params);
 
-    // connectイベントが発生したらパラメータを送信してサーバー側でWebRtcTransport.connect()を実行する
-    this.transport.on(
-      "connect",
-      async ({ dtlsParameters }, callback, errback) => {
-        console.log('transport.connect');
-        this.sock.sendRequestAsync("connect-producer-transport", {
-          transportId: this.transport.id,
-          dtlsParameters: dtlsParameters,
-        })
-          .then(callback)
-          .catch(errback);
-      },
-    );
+    this.transport.on("connect", ({ dtlsParameters }, callback, errback) => {
+      this.sock.sendRequestAsync("connect-producer-transport", {
+        transportId: this.transport.id,
+        dtlsParameters: dtlsParameters,
+      })
+        .then(callback)
+        .catch(errback);
+    });
 
-    // producedataイベントが発生したらパラメータを送信してサーバー側でDataProducerを生成する
-    this.transport.on("producedata", async (parameters, callback, errback) => {
-      console.log('transport.producedata');
-      try {
-        const id = await this.sock.sendRequestAsync<string>("produce-data", {
-          transportId: this.transport.id,
-          produceParameters: parameters,
-        });
-        callback({ id: id });
-      } catch (err) {
-        errback(err);
-      }
+    this.transport.on("producedata", (parameters, callback, errback) => {
+      this.sock.sendRequestAsync("produce-data", {
+        transportId: this.transport.id,
+        produceParameters: parameters,
+      })
+        .then(callback)
+        .catch(errback);
     });
   }
 }
-
 
 export function ProducerTransportElement({ rpc, transport }: {
   rpc: WebSocketJsonRpc,
   transport: ProducerTransport,
 }) {
-
-  return (
-    <div>
-      <div className="item">
-        <header>rtp capability</header>
-        <p>{transport ? transport.rtpCapString : ""}</p>
-      </div>
-      <div className="item">
-        <header>transport </header>
-        <p>{transport ? transport.transport?.id : ""}</p>
-      </div>
+  return (<div>
+    <div className="item">
+      <header>rtp capability</header>
+      <p>{transport ? transport.rtpCapString : ""}</p>
     </div>
-  );
+    <div className="item">
+      <header>transport </header>
+      <p>{transport ? transport.transport?.id : ""}</p>
+    </div>
+  </div>);
 }
+

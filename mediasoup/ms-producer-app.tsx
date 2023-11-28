@@ -1,5 +1,5 @@
 import "./ms-producer.css";
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import {
   WebSocketJsonRpc,
   JsonRpcDispatcher, JsonRpcDispatchEvent
@@ -12,16 +12,16 @@ import {
 import {
   ProducerTransportElement, ProducerTransport
 } from './ms-producer-transport.jsx';
-
-
-// await producer.createProducer(videoCanvas);
-
+import {
+  ProducerElement, Producer,
+} from './ms-producer.jsx';
 
 
 export default function App() {
   const [rpc, setRpc] = useState<WebSocketJsonRpc>(null);
   const [videoCanvas, setVideoCanvas] = useState<VideoCanvas>(null);
   const [transport, setTransport] = useState<ProducerTransport>(null);
+  const [producer, setProducer] = useState<Producer>(null);
 
   // Code here will run after *every* render
   const wsUrl =
@@ -52,6 +52,15 @@ export default function App() {
     });
   }
 
+  if (!producer) {
+    if (videoCanvas && transport && transport.transport) {
+      const newProducer = new Producer(transport.transport);
+      newProducer.create(videoCanvas).then(() => {
+        setProducer(newProducer);
+      });
+    }
+  }
+
   return (
     <>
       <div className="item">
@@ -62,6 +71,7 @@ export default function App() {
         videoCanvas={videoCanvas}
         setVideoCanvas={setVideoCanvas} />
       <ProducerTransportElement rpc={rpc} transport={transport} />
+      <ProducerElement producer={producer} />
     </>
   );
 }
