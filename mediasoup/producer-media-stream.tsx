@@ -22,12 +22,14 @@ export default function ProducerMediaStream({ stream, setStream }
 
   return (
     <>
-      <p><button
-        disabled={stream != null}
-        onClick={handleClick}
-      > 送信開始 </button></p>
       <video ref={video}> </video>
-      <canvas id="canvas" style={{ display: 'none' }}> </canvas>
+      {stream
+        ? <canvas id="canvas" style={{ display: 'none' }}> </canvas>
+        : (<button
+          disabled={stream != null}
+          onClick={handleClick}
+        > get media stream </button>)
+      }
     </>
   );
 }
