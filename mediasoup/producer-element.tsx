@@ -23,6 +23,7 @@ import * as MediasoupClient from "mediasoup-client";
 export class ProducerSession {
   timerId = null;
   device: MediasoupClient.Device = new MediasoupClient.Device();
+  rtpCapString: string = '';
   transport: MediasoupClient.types.Transport | null = null;
   producer: MediasoupClient.types.DataProducer | null = null;
   constructor(
@@ -31,6 +32,7 @@ export class ProducerSession {
   }
 
   async createTransport(rtpCap: MediasoupClient.types.RtpCapabilities) {
+    this.rtpCapString = JSON.stringify(rtpCap);
     await this.device.load({ routerRtpCapabilities: rtpCap });
 
     const params: any = await this.sock.sendRequestAsync(
@@ -99,15 +101,16 @@ export function ProducerElement({ rpc, stream, session }: {
   stream: MediaStream,
   session: ProducerSession,
 }) {
+
   return (<>
     <div>
-      rtp capability
+      rtp capability {session ? session.rtpCapString : ""}
     </div>
     <div>
-      transport
+      transport {session ? session.transport?.id : ""}
     </div>
     <div>
-      producer
+      producer {session ? session.producer?.id : ""}
     </div>
   </>);
 }
