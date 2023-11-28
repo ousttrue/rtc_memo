@@ -1,0 +1,7 @@
+.item {
+  border: solid 2px;
+}
+.item header {
+  background-color: #222;
+  color: #ddd;
+}

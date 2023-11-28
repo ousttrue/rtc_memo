@@ -1,3 +1,4 @@
+import './ms-producer.css';
 import { useState, useRef, useEffect } from 'react';
 
 
@@ -21,8 +22,8 @@ export default function ProducerMediaStream({ stream, setStream }
   }
 
   return (
-    <>
-      <video ref={video}> </video>
+    <div className="item">
+      <header>media stream(video)</header>
       {stream
         ? <canvas id="canvas" style={{ display: 'none' }}> </canvas>
         : (<button
@@ -30,6 +31,7 @@ export default function ProducerMediaStream({ stream, setStream }
           onClick={handleClick}
         > get media stream </button>)
       }
-    </>
+      <video ref={video}> </video>
+    </div>
   );
 }

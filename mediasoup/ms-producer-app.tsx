@@ -1,16 +1,40 @@
+import "./ms-producer.css";
 import { useState, useRef, useEffect } from 'react';
 import {
   WebSocketJsonRpc,
   JsonRpcDispatcher, JsonRpcDispatchEvent
 } from '../ws-json-rpc.js';
-import ProducerMediaStream from './producer-media-stream.jsx';
-import { ProducerElement, ProducerSession } from './producer-element.jsx';
+
+import ProducerMediaStream from './ms-producer-media-stream.jsx';
+import {
+  ProducerTransportElement, ProducerTransport
+} from './ms-producer-transport.jsx';
+
+
+// export class VideoCanvas {
+//   constructor(
+//     public readonly video: HTMLVideoElement,
+//     public readonly canvas: HTMLCanvasElement,
+//     public readonly imageFormat = "image/png",
+//   ) { }
+//
+//   blit(callback: BlobCallback) {
+//     const context = this.canvas.getContext("2d");
+//     this.canvas.width = canvasWidth;
+//     this.canvas.height = canvasHeight;
+//     context.drawImage(this.video, 0, 0, canvasWidth, canvasHeight);
+//     this.canvas.toBlob(callback, this.imageFormat);
+//   }
+// }
+
+// await producer.createProducer(videoCanvas);
+
 
 
 export default function App() {
   const [rpc, setRpc] = useState<WebSocketJsonRpc>(null);
   const [stream, setStream] = useState<MediaStream>(null);
-  const [session, setSession] = useState<ProducerSession>(null);
+  const [transport, setTransport] = useState<ProducerTransport>(null);
 
   // Code here will run after *every* render
   const wsUrl =
@@ -33,9 +57,9 @@ export default function App() {
           (e as JsonRpcDispatchEvent).message, newRpc);
       });
       dispatcher.methodMap.set('rtp-capabilities', async (rtpCap) => {
-        const session = new ProducerSession(newRpc);
-        await session.createTransport(rtpCap);
-        setSession(session);
+        const transport = new ProducerTransport(newRpc);
+        await transport.createTransport(rtpCap);
+        setTransport(transport);
       });
       setRpc(newRpc);
     });
@@ -43,11 +67,12 @@ export default function App() {
 
   return (
     <>
-      <div>
-        websocket: {rpc ? wsUrl : "..."}
+      <div className="item">
+        <header>websocket</header>
+        <p>{rpc ? wsUrl : "..."}</p>
       </div>
       <ProducerMediaStream stream={stream} setStream={setStream} />
-      <ProducerElement rpc={rpc} stream={stream} session={session} />
+      <ProducerTransportElement rpc={rpc} transport={transport} />
     </>
   );
 }
