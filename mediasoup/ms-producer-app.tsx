@@ -5,27 +5,14 @@ import {
   JsonRpcDispatcher, JsonRpcDispatchEvent
 } from '../ws-json-rpc.js';
 
-import ProducerMediaStream from './ms-producer-media-stream.jsx';
+import {
+  ProducerMediaStream,
+  VideoCanvas
+} from './ms-producer-media-stream.jsx';
 import {
   ProducerTransportElement, ProducerTransport
 } from './ms-producer-transport.jsx';
 
-
-// export class VideoCanvas {
-//   constructor(
-//     public readonly video: HTMLVideoElement,
-//     public readonly canvas: HTMLCanvasElement,
-//     public readonly imageFormat = "image/png",
-//   ) { }
-//
-//   blit(callback: BlobCallback) {
-//     const context = this.canvas.getContext("2d");
-//     this.canvas.width = canvasWidth;
-//     this.canvas.height = canvasHeight;
-//     context.drawImage(this.video, 0, 0, canvasWidth, canvasHeight);
-//     this.canvas.toBlob(callback, this.imageFormat);
-//   }
-// }
 
 // await producer.createProducer(videoCanvas);
 
@@ -33,7 +20,7 @@ import {
 
 export default function App() {
   const [rpc, setRpc] = useState<WebSocketJsonRpc>(null);
-  const [stream, setStream] = useState<MediaStream>(null);
+  const [videoCanvas, setVideoCanvas] = useState<VideoCanvas>(null);
   const [transport, setTransport] = useState<ProducerTransport>(null);
 
   // Code here will run after *every* render
@@ -71,7 +58,9 @@ export default function App() {
         <header>websocket</header>
         <p>{rpc ? wsUrl : "..."}</p>
       </div>
-      <ProducerMediaStream stream={stream} setStream={setStream} />
+      <ProducerMediaStream
+        videoCanvas={videoCanvas}
+        setVideoCanvas={setVideoCanvas} />
       <ProducerTransportElement rpc={rpc} transport={transport} />
     </>
   );
