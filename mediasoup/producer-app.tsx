@@ -1,10 +1,11 @@
+import { useState, useRef, useEffect } from 'react';
 import * as MediasoupClient from "mediasoup-client";
 import {
   WebSocketJsonRpc,
   JsonRpcDispatcher, JsonRpcDispatchEvent
 } from '../ws-json-rpc.js';
-import { useState, useRef, useEffect } from 'react';
-import ProducerButton from './producer-button.jsx'
+import ProducerMediaStream from './producer-media-stream.jsx';
+
 
 export class VideoCanvas {
   constructor(
@@ -96,10 +97,23 @@ export class Producer {
   }
 }
 
+function ProducerArea({ producer }) {
+  if (producer) {
+    return (<>
+      transport: created
+    </>);
+  }
+  else {
+    return (<>
+      transport: no
+    </>);
+  }
+}
 
 export default function App() {
   const [rpc, setRpc] = useState<WebSocketJsonRpc>(null);
   const [stream, setStream] = useState<MediaStream>(null);
+  const [producer, setProducer] = useState<Producer>(null);
 
   // await producer.createProducer(videoCanvas);
 
@@ -124,7 +138,7 @@ export default function App() {
       dispatcher.methodMap.set('rtp-capabilities', async (rtpCap) => {
         const producer = new Producer(sock);
         await producer.createTransport(rtpCap);
-        console.log('done');
+        setProducer(producer);
       });
       setRpc(sock);
     });
@@ -132,7 +146,8 @@ export default function App() {
 
   return (
     <>
-      <ProducerButton rpc={rpc} setStream={setStream} />
+      <ProducerMediaStream stream={stream} setStream={setStream} />
+      <ProducerArea producer={producer} />
     </>
   );
 }
