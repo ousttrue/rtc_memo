@@ -5,6 +5,8 @@ import ReactFlow, {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  Node,
+  Connection,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
@@ -12,6 +14,7 @@ import {
   JsonRpcDispatcher, JsonRpcDispatchEvent
 } from '../ws-json-rpc.js';
 import * as MediasoupClient from "mediasoup-client";
+import VideoNode from './videonode.jsx';
 
 
 const wsUrl =
@@ -19,33 +22,63 @@ const wsUrl =
   + location.hostname
   + (location.port ? `:${location.port}` : '')
   + '/';
-const ws = new WebSocket(wsUrl);
-console.log(ws);
-ws.addEventListener('open', (e) => {
-  console.log('open', e);
-});
-ws.addEventListener('error', (e) => {
-  console.log('error', e);
-});
-ws.addEventListener('message', (e) => {
-  console.log('messag', e);
-});
-ws.addEventListener('close', (e) => {
-  console.log('close', e);
-});
 
 
-import TextUpdaterNode from './videonode.jsx';
-const nodeTypes = { textUpdater: TextUpdaterNode };
+const nodeTypes = { textUpdater: VideoNode };
 const initialNodes = [];
-
 const initialEdges = [];
 
 
-class Transport {
+class TransportNodeData {
+  data = { label: `RtcTransport` };
+  position = { x: 30, y: 30 };
+  type = 'default';
+  id = '';
+  constructor() {
+  }
+
+  toString(): string {
+    return "rtc";
+  }
+}
+
+
+class VideoNodeData {
+  type = 'textUpdater';
+  data = { value: 123 };
+  position = { x: -30, y: -30 };
+
+  constructor() {
+  }
+
+  toString(): string {
+    return "video";
+  }
+}
+
+
+class Ref {
+  ws: WebSocket;
   rpc: WebSocketJsonRpc;
   dispatcher = new JsonRpcDispatcher();
-  constructor(public readonly ws: WebSocket) {
+  nodeMap: Map<string, Node> = new Map();
+  constructor() {
+    const ws = new WebSocket(wsUrl);
+    this.ws = ws;
+    console.log(ws);
+    ws.addEventListener('open', (e) => {
+      console.log('open', e);
+    });
+    ws.addEventListener('error', (e) => {
+      console.log('error', e);
+    });
+    ws.addEventListener('message', (e) => {
+      console.log('message', e);
+    });
+    ws.addEventListener('close', (e) => {
+      console.log('close', e);
+    });
+
     this.rpc = new WebSocketJsonRpc(ws);
 
     this.rpc.addEventListener('json-rpc-dispatch',
@@ -55,9 +88,17 @@ class Transport {
 
   }
 
-  close() {
-    console.log('Disconnecting..');
-    this.ws.close();
+  addNode(node: any, nodes: Node[], setNodes: (nodes: Node[]) => void) {
+    const id = `${nodes.length + 1}`;
+    node.id = id;
+    this.nodeMap.set(id, node);
+    setNodes([...nodes, node]);
+  }
+
+  onConnect(connection: Connection) {
+    const src = this.nodeMap.get(connection.source);
+    const dst = this.nodeMap.get(connection.target);
+    console.log(`${src} => ${dst}`);
   }
 }
 
@@ -65,34 +106,25 @@ class Transport {
 function Flow() {
   const [nodes, setNodes] = React.useState(initialNodes);
   const [edges, setEdges] = React.useState(initialEdges);
-  // const [transport, setTransport] = useState<Transport>(initTransport);
 
-  const transportRef = React.useRef<Transport>();
+  const ref = React.useRef<Ref>();
   React.useEffect(() => {
+    if (ref.current) {
+      return;
+    }
 
-    const transport = new Transport(ws);
-    transportRef.current = transport;
+    const r = new Ref();
+    ref.current = r;
 
-    transport.dispatcher.methodMap.set('rtp-capabilities',
+    r.dispatcher.methodMap.set('rtp-capabilities',
       async (rtp: MediasoupClient.types.RtpCapabilities) => {
-        // console.log('dispatch', rtp);
-        const id = nodes.length + 1;
-        setNodes([...nodes, {
-          id: `${id}`,
-          data: { label: `RtcTransport` },
-          position: { x: 30, y: 30 },
-          type: 'default',
-        }]);
+        r.addNode(new TransportNodeData(), nodes, setNodes);
       });
 
-    // transportRef.current.on('broadcast', payload => {
-    //   console.log('Recieved: ' + payload);
-    //   setMessages(prevMessages => [...prevMessages, payload]);
-    // });
-    //
-
+    // React.StrictMode !
     // return () => {
-    //   transportRef.current.close();
+    //   console.log('close !');
+    //   r.ws.close();
     // };
   }, []);
 
@@ -105,27 +137,16 @@ function Flow() {
     [],
   );
 
-  const onConnect = React.useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
+  const onConnect = React.useCallback((params: Connection) => {
+    ref.current.onConnect(params);
+    setEdges((eds) => addEdge(params, eds))
+  },
     [],
   );
 
   const handleClick = () => {
-    const id = nodes.length + 1;
-    setNodes([...nodes, {
-      id: `${id}`,
-      type: 'textUpdater',
-      // position: { x: 0, y: 0 }, 
-      data: { value: 123 },
-      // data: { label: `LocalVideo` },
-      position: { x: -30, y: -30 },
-    }]);
+    ref.current!.addNode(new VideoNodeData(), nodes, setNodes);
   };
-
-  // {
-  // id: 'node-1',
-  // },
-
 
   return (
     <div style={{
