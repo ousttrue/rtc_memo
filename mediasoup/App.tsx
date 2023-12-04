@@ -35,8 +35,9 @@ ws.addEventListener('close', (e) => {
 });
 
 
-const initialNodes = [
-];
+import TextUpdaterNode from './videonode.jsx';
+const nodeTypes = { textUpdater: TextUpdaterNode };
+const initialNodes = [];
 
 const initialEdges = [];
 
@@ -113,11 +114,18 @@ function Flow() {
     const id = nodes.length + 1;
     setNodes([...nodes, {
       id: `${id}`,
-      data: { label: `LocalVideo` },
+      type: 'textUpdater',
+      // position: { x: 0, y: 0 }, 
+      data: { value: 123 },
+      // data: { label: `LocalVideo` },
       position: { x: -30, y: -30 },
-      type: 'input',
     }]);
   };
+
+  // {
+  // id: 'node-1',
+  // },
+
 
   return (
     <div style={{
@@ -136,6 +144,7 @@ function Flow() {
           edges={edges}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          nodeTypes={nodeTypes}
           fitView
         >
           <Background />
