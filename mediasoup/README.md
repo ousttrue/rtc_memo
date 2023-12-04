@@ -63,6 +63,6 @@ MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD="true" npm install mediasoup@3
 ## run
 
 ```sh
-> npx vite-node mediasoup/app.ts
+> npx vite-node mediasoup/server.ts
 ```
 
